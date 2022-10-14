@@ -1,0 +1,142 @@
+package allocator
+
+import (
+	"testing"
+)
+
+func createValidAllocator() *Allocator {
+	names := []string{"sam", "john", "billiam", "john4", "john3"}
+	passwords := []string{"1", "2", "3", "4", "5"}
+	return New(names, passwords)
+}
+
+func TestFailOn1Name(t *testing.T) {
+	names := []string{"sam"}
+	passwords := []string{"1", "2", "3", "4", "5"}
+	a := New(names, passwords)
+	if _, err := a.Allocate(); err == nil {
+		t.Fatalf("should fail on 1 name")
+	}
+}
+
+func TestAllocateNoDuplicateAliases(t *testing.T) {
+	allocator := createValidAllocator()
+	allocation, err := allocator.Allocate()
+
+	if err != nil {
+		t.Errorf("Unable to Allocate got: %v", err)
+	}
+
+	seenNames := make(map[string]bool)
+	seenPasswords := make(map[string]bool)
+	for name, password := range allocation.aliases {
+		if seenNames[name] {
+			t.Errorf("Name has appeared twice in alias allocation: %s", name)
+		}
+		if seenPasswords[password] {
+			t.Errorf("Password has appeared twice in alias allocation: %s", name)
+		}
+	}
+}
+
+func TestAllocationDoesNotAssignSelf(t *testing.T) {
+	a := createValidAllocator()
+	allocation, _ := a.Allocate()
+
+	for name, password := range allocation.allocations {
+		assigned := allocation.aliases[password]
+		if name == assigned {
+			t.Fatalf("found name with self assigned: %s", name)
+		}
+	}
+}
+
+func TestEveryNameIsInEachList(t *testing.T) {
+	a := createValidAllocator()
+	allocation, _ := a.Allocate()
+	// check alias map
+	for _, name := range a.Names {
+		_, exists := allocation.aliases[name]
+		if !exists {
+			t.Logf("Unable to find name in alias: %s", name)
+			t.Fatal(allocation)
+		}
+		_, exists = allocation.allocations[name]
+		if !exists {
+			t.Logf("Unable to find name in allocations: %s", name)
+			t.Fatal(allocation)
+		}
+	}
+
+	// Check allocation map
+
+}
+
+func TestEveryPasswordIsInEachList(t *testing.T) {
+	a := createValidAllocator()
+	allocation, _ := a.Allocate()
+
+	for _, password := range a.Passwords {
+		// check alias passwords
+		exists := false
+		for _, allocationPassword := range allocation.allocations {
+			if password == allocationPassword {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+
+			t.Logf("Unable to find password in allocations: %s", password)
+			t.Fatal(allocation)
+		}
+
+		for _, password := range a.Passwords {
+			// check alias passwords
+			exists := false
+			for _, aliasPassword := range allocation.aliases {
+				if password == aliasPassword {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+
+				t.Logf("Unable to find password in aliases: %s", password)
+				t.Fatal(allocation)
+			}
+		}
+	}
+}
+
+func TestAllocateNoDuplicateAllocations(t *testing.T) {
+	allocator := createValidAllocator()
+	allocation, err := allocator.Allocate()
+
+	if err != nil {
+		t.Errorf("Unable to Allocate got: %v", err)
+	}
+
+	seenNames := make(map[string]bool)
+	seenPasswords := make(map[string]bool)
+	for name, password := range allocation.allocations {
+		if seenNames[name] {
+			t.Errorf("Name has appeared twice in allocation: %s", name)
+		}
+		if seenPasswords[password] {
+			t.Errorf("Password has appeared twice in allocation: %s", name)
+		}
+	}
+}
+
+func TestErrorOnLessPasswordsThanNames(t *testing.T) {
+	names := []string{"sam", "john", "billiam", "john4", "john3", "extra name"}
+	passwords := []string{"1", "2", "3", "4", "5"}
+	allocator := New(names, passwords)
+
+	_, err := allocator.Allocate()
+
+	if err == nil {
+		t.Error("should have errored on more names than passwords")
+	}
+}
