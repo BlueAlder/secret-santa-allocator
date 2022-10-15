@@ -4,23 +4,29 @@ import (
 	"testing"
 )
 
-func createValidAllocator() *Allocator {
-	names := []string{"sam", "john", "billiam", "john4", "john3"}
-	passwords := []string{"1", "2", "3", "4", "5"}
-	return New(names, passwords)
+func createAllocator() *Allocator {
+	var yaml = `names: 
+    data: ["sam", "tom", "jim", "grace", "bill"] # array of names that is unioned with the above file
+passwords: 
+  data: ["password1", "password2", "password3", "password4", "password5"]`
+	c, _ := LoadConfigFromYaml([]byte(yaml))
+	a, _ := New(c)
+	return a
 }
 
 func TestFailOn1Name(t *testing.T) {
-	names := []string{"sam"}
-	passwords := []string{"1", "2", "3", "4", "5"}
-	a := New(names, passwords)
+	names := map[string]struct{}{"sam": {}}
+	passwords := map[string]struct{}{"1": {}, "2": {}, "3": {}, "4": {}, "5": {}}
+	a := createAllocator()
+	a.Names = names
+	a.Passwords = passwords
 	if _, err := a.Allocate(); err == nil {
 		t.Fatalf("should fail on 1 name")
 	}
 }
 
 func TestAllocateNoDuplicateAliases(t *testing.T) {
-	allocator := createValidAllocator()
+	allocator := createAllocator()
 	allocation, err := allocator.Allocate()
 
 	if err != nil {
@@ -40,7 +46,7 @@ func TestAllocateNoDuplicateAliases(t *testing.T) {
 }
 
 func TestAllocationDoesNotAssignSelf(t *testing.T) {
-	a := createValidAllocator()
+	a := createAllocator()
 	allocation, _ := a.Allocate()
 
 	for name, password := range allocation.allocations {
@@ -52,10 +58,10 @@ func TestAllocationDoesNotAssignSelf(t *testing.T) {
 }
 
 func TestEveryNameIsInEachList(t *testing.T) {
-	a := createValidAllocator()
+	a := createAllocator()
 	allocation, _ := a.Allocate()
 	// check alias map
-	for _, name := range a.Names {
+	for name := range a.Names {
 		_, exists := allocation.aliases[name]
 		if !exists {
 			t.Logf("Unable to find name in alias: %s", name)
@@ -72,45 +78,46 @@ func TestEveryNameIsInEachList(t *testing.T) {
 
 }
 
-func TestEveryPasswordIsInEachList(t *testing.T) {
-	a := createValidAllocator()
-	allocation, _ := a.Allocate()
+// Don't need this anymore
+// func TestEveryPasswordIsInEachList(t *testing.T) {
+// 	a := createAllocator()
+// 	allocation, _ := a.Allocate()
 
-	for _, password := range a.Passwords {
-		// check alias passwords
-		exists := false
-		for _, allocationPassword := range allocation.allocations {
-			if password == allocationPassword {
-				exists = true
-				break
-			}
-		}
-		if !exists {
+// 	for password := range a.Passwords {
+// 		// check alias passwords
+// 		exists := false
+// 		for _, allocationPassword := range allocation.allocations {
+// 			if password == allocationPassword {
+// 				exists = true
+// 				break
+// 			}
+// 		}
+// 		if !exists {
 
-			t.Logf("Unable to find password in allocations: %s", password)
-			t.Fatal(allocation)
-		}
+// 			t.Logf("Unable to find password in allocations: %s", password)
+// 			t.Fatal(allocation)
+// 		}
 
-		for _, password := range a.Passwords {
-			// check alias passwords
-			exists := false
-			for _, aliasPassword := range allocation.aliases {
-				if password == aliasPassword {
-					exists = true
-					break
-				}
-			}
-			if !exists {
+// 		for password := range a.Passwords {
+// 			// check alias passwords
+// 			exists := false
+// 			for _, aliasPassword := range allocation.aliases {
+// 				if password == aliasPassword {
+// 					exists = true
+// 					break
+// 				}
+// 			}
+// 			if !exists {
 
-				t.Logf("Unable to find password in aliases: %s", password)
-				t.Fatal(allocation)
-			}
-		}
-	}
-}
+// 				t.Logf("Unable to find password in aliases: %s", password)
+// 				t.Fatal(allocation)
+// 			}
+// 		}
+// 	}
+// }
 
 func TestAllocateNoDuplicateAllocations(t *testing.T) {
-	allocator := createValidAllocator()
+	allocator := createAllocator()
 	allocation, err := allocator.Allocate()
 
 	if err != nil {
@@ -130,9 +137,13 @@ func TestAllocateNoDuplicateAllocations(t *testing.T) {
 }
 
 func TestErrorOnLessPasswordsThanNames(t *testing.T) {
-	names := []string{"sam", "john", "billiam", "john4", "john3", "extra name"}
-	passwords := []string{"1", "2", "3", "4", "5"}
-	allocator := New(names, passwords)
+	names := map[string]struct{}{"sam": {}, "john": {}, "billiam": {}, "john4": {}, "john3": {}, "extra name": {}}
+	passwords := map[string]struct{}{"1": {}, "2": {}, "3": {}, "4": {}, "5": {}}
+
+	// const yaml := ``
+	allocator := createAllocator()
+	allocator.Names = names
+	allocator.Passwords = passwords
 
 	_, err := allocator.Allocate()
 

@@ -37,8 +37,30 @@ func RemoveIndex[T any](s []T, index int) []T {
 
 // Selects a random element from a slice and returns
 // it and it's index
-func RandomElement[T any](s []T) (T, int) {
+func RandomElementFromSlice[T any](s []T) (T, int) {
 	rand.Seed(time.Now().Unix())
 	randomChoice := rand.Intn(len(s))
 	return s[randomChoice], randomChoice
+}
+
+func RandomElementFromSet[T comparable](s map[T]struct{}) T {
+	rand.Seed(time.Now().Unix())
+	randomChoice := rand.Intn(len(s))
+	for password := range s {
+		if randomChoice == 0 {
+			return password
+		}
+		randomChoice--
+	}
+	panic("unable to choose element from set")
+}
+
+func MapKeysToSlice[T comparable, K any](m map[T]K) []T {
+	s := make([]T, len(m))
+	idx := 0
+	for key := range m {
+		s[idx] = key
+		idx++
+	}
+	return s
 }

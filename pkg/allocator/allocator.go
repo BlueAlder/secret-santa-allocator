@@ -1,27 +1,58 @@
 package allocator
 
 import (
+	"context"
 	"errors"
-	"math/rand"
-	"time"
+	"fmt"
+	"strings"
 
 	"github.com/BlueAlder/secret-santa-allocator/pkg/utils"
 )
 
+type Set map[string]struct{}
+
 type Allocator struct {
-	Names     []string
-	Passwords []string
-	// Rulesets       []Ruleset
+	Names          Set // using maps here to dedupe the list
+	Passwords      Set
+	Config         Config
 	lastAllocation Allocation
 }
 
 // creates a new instance of an Allocator
 // takes a slice of names and passwords to distribute to eachother
-func New(names []string, passwords []string) *Allocator {
-	return &Allocator{
-		Names:     names,
-		Passwords: passwords,
+func New(config *Config) (*Allocator, error) {
+	a := &Allocator{
+		Names:     make(Set),
+		Passwords: make(Set),
+		Config:    *config,
 	}
+
+	// Load names
+	var undupedNames []string
+	if config.Names.File != "" {
+		err := utils.ReadFileIntoSlice(config.Names.File, &undupedNames)
+		if err != nil {
+			return nil, fmt.Errorf("error while loading names from file: %v", err)
+		}
+	}
+	undupedNames = append(undupedNames, config.Names.Data...)
+	for _, name := range undupedNames {
+		a.Names[strings.TrimSpace(name)] = struct{}{}
+	}
+
+	// Load passwords
+	var undupedPasswords []string
+	if config.Passwords.File != "" {
+		err := utils.ReadFileIntoSlice(config.Passwords.File, &undupedPasswords)
+		if err != nil {
+			return nil, fmt.Errorf("error while loading passwords from file: %v", err)
+		}
+	}
+	undupedPasswords = append(undupedPasswords, config.Passwords.Data...)
+	for _, password := range undupedPasswords {
+		a.Passwords[strings.TrimSpace(password)] = struct{}{}
+	}
+	return a, nil
 }
 
 // Will allocate the names to a password and then the
@@ -33,45 +64,90 @@ func (a *Allocator) Allocate() (*Allocation, error) {
 
 	allocation := newAllocation()
 	a.createAliases(allocation)
-	a.createAllocations(allocation)
+	err := a.createAllocations(allocation)
+
+	if err != nil {
+		return nil, err
+	}
 
 	// Map each name to a password
-
 	a.lastAllocation = *allocation
-
 	return allocation, nil
 }
 
 // using the names and passwords in the allocator
 // map each name to an alias password
 func (a *Allocator) createAliases(alloc *Allocation) {
-	rand.Seed(time.Now().Unix())
-	remainingPasswords := a.Passwords
-	for _, name := range a.Names {
-		password, randIdx := utils.RandomElement(remainingPasswords)
+	remainingPasswords := utils.MapKeysToSlice(a.Passwords)
+	for name := range a.Names {
+		password, randIdx := utils.RandomElementFromSlice(remainingPasswords)
 		alloc.aliases[name] = password
 		remainingPasswords = utils.RemoveIndex(remainingPasswords, randIdx)
 	}
 }
 
-func (a *Allocator) createAllocations(alloc *Allocation) {
-	remainingSantas := a.Names
-	for _, name := range a.Names {
-		for {
-			santa, santaIdx := utils.RandomElement(remainingSantas)
-			if a.checkAllocationValidRuleset(santa, name) {
-				// get santa alias
-				alias := alloc.aliases[santa]
-				alloc.allocations[name] = alias
-				remainingSantas = utils.RemoveIndex(remainingSantas, santaIdx)
-				break
+func (a *Allocator) createAllocations(alloc *Allocation) error {
+	ctx, cancel := context.WithTimeout(context.Background(), a.Config.Timeout)
+	complete := make(chan map[string]string)
+	for i := 0; i < 5; i++ {
+		go func() {
+			remainingSantas := utils.MapKeysToSlice(a.Names)
+			allocations := make(map[string]string)
+			for name := range a.Names {
+
+			infinite:
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						santa, santaIdx := utils.RandomElementFromSlice(remainingSantas)
+						if a.checkAllocationValidRuleset(santa, name) {
+							allocations[santa] = name
+							remainingSantas = utils.RemoveIndex(remainingSantas, santaIdx)
+							break infinite
+						}
+					}
+
+				}
 			}
-		}
+			complete <- allocations
+		}()
 	}
+
+	select {
+	case a := <-complete:
+		alloc.allocations = a
+		cancel()
+		break
+	case <-ctx.Done():
+		cancel()
+		return fmt.Errorf("unable to find a suitable allocation with the given rules within %s. May be impossible", a.Config.Timeout.String())
+	}
+
+	return nil
 }
 
 func (a *Allocator) checkAllocationValidRuleset(santa string, santee string) bool {
 	// TODO: Implemenet this to check for rules being violated
+
+	if santa == santee {
+		return a.Config.CanAllocateSelf
+	}
+
+	rule, exists := a.Config.Rules[santa]
+	// No rule for this santa so return true
+	if !exists {
+		return true
+	}
+
+	// Check for exclusion in rule
+	for _, name := range rule.CannotGet {
+		if name == santee {
+			return false
+		}
+	}
+
 	return true
 }
 

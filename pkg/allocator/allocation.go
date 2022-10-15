@@ -7,7 +7,7 @@ import (
 
 type Allocation struct {
 	aliases     map[string]string // name -> password
-	allocations map[string]string // name -> password
+	allocations map[string]string // name -> name
 	created     time.Time
 }
 
@@ -20,8 +20,23 @@ func newAllocation() *Allocation {
 }
 
 func (a *Allocation) PrintNameToPassword() {
-	for name, password := range a.allocations {
-		fmt.Printf("Name: %s   Password: %s\n", name, password)
+	fmt.Println("Printing names to allocated passwords:")
+	for name, allocated := range a.allocations {
+		fmt.Printf("%s -> %s\n", name, a.aliases[allocated])
+	}
+}
+
+func (a *Allocation) PrintNameToName() {
+	fmt.Println("Printing names to allocated names:")
+	for name, allocated := range a.allocations {
+		fmt.Printf("%s -> %s\n", name, allocated)
+	}
+}
+
+func (a *Allocation) PrintAliases() {
+	fmt.Println("Printing names aliases:")
+	for name, password := range a.aliases {
+		fmt.Printf("%s -> %s\n", name, password)
 	}
 }
 
