@@ -1,0 +1,57 @@
+package allocator
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"os"
+	"time"
+
+	"gopkg.in/yaml.v3"
+)
+
+type AllocationStore struct {
+	Allocation         string            `json:"allocation"` // base64 encoded version of Allocation
+	AllocatedPasswords map[string]string `json:"allocated_passwords"`
+	Created            time.Time         `json:"created"`
+}
+
+func newAllocationStore(a *Allocation) (*AllocationStore, error) {
+	data, err := a.toJson()
+	if err != nil {
+		return nil, err
+	}
+	enc := base64.StdEncoding.EncodeToString(data)
+
+	as := &AllocationStore{
+		Allocation:         enc,
+		AllocatedPasswords: a.allocatedPasswords(),
+		Created:            a.Created,
+	}
+
+	return as, nil
+}
+
+func (a *AllocationStore) ouputToFile(fileName string, fileType string) error {
+	var data []byte
+	var err error
+	switch fileType {
+	case "yaml":
+		data, err = yaml.Marshal(a)
+	case "json":
+		data, err = json.MarshalIndent(a, "", "\t")
+	default:
+		return fmt.Errorf("OutputToFile invalid file type: %s", fileType)
+	}
+
+	if err != nil {
+		return fmt.Errorf("unable to marshal data got: %w", err)
+	}
+
+	err = os.WriteFile(fileName, data, 0644)
+	if err != nil {
+		return fmt.Errorf("unable to write to file got: %w", err)
+	}
+
+	return nil
+}

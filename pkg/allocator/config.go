@@ -16,18 +16,19 @@ type Config struct {
 		File string   `yaml:"file"`
 		Data []string `yaml:"data"`
 	}
-	CanAllocateSelf bool            `yaml:"canAllocateSelf"`
-	Timeout         time.Duration   `yaml:"timeout,omitempty"`
-	Rules           map[string]Rule `yaml:"rules"`
+	CanAllocateSelf bool          `yaml:"canAllocateSelf"`
+	Timeout         time.Duration `yaml:"timeout,omitempty"`
+	Rules           []Rule        `yaml:"rules"`
+}
+
+type Rule struct {
+	Name      string   `yaml:"name"`
+	CannotGet []string `yaml:"cannotGet"`
 }
 
 var DefaultConfig = Config{
 	CanAllocateSelf: false,
 	Timeout:         time.Second * 5,
-}
-
-type Rule struct {
-	CannotGet []string `yaml:"cannotGet"`
 }
 
 func LoadConfigFromYaml(yamlData []byte) (*Config, error) {

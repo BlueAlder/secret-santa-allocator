@@ -4,30 +4,37 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/BlueAlder/secret-santa-allocator/pkg/allocator"
 )
 
-// var namesFile = flag.String("namesFile", "", "name of the file containing the list of names")
-// var passwordsFile = flag.String("passwordsFile", "", "name of the file containing the list of name")
-var configFileName = flag.String("configFile", "", "name of the yaml file which contains the allocation configuration")
-var outputFile = flag.String("outputFile", "", "file to write allocation to")
-var outputFormat = flag.String("ouputFormat", "json", "format to write output file to ")
+// FlagVars
+var (
+	configFileName string
+	outputFile     string
+	outputFormat   string
+)
 
-type OutputFormat string
+// Flags
+
+var (
+	colorGreen = "\033[32m"
+	colorRed   = "\033[31m"
+)
 
 func validateFlags() error {
-	if *configFileName == "" {
+	if configFileName == "" {
 		return errors.New("must provide a allocation configuration file")
 	}
 
 	// We are writing out to a file
-	if *outputFile != "" {
-		if *outputFormat != "json" && *outputFile != "yaml" {
-			return fmt.Errorf("invalid outputFormat, got: %s", *outputFormat)
+	if outputFile != "" {
+		if outputFormat != "json" && outputFormat != "yaml" {
+			return fmt.Errorf("invalid outputFormat, got: %s", outputFormat)
 		}
+	} else {
+		fmt.Println("no outputFile flag detected. will instead print the results to stdout")
 	}
 
 	return nil
@@ -35,44 +42,68 @@ func validateFlags() error {
 
 // func writeToFile()
 
+func logFatal(s string, a ...any) {
+	fmt.Printf(colorRed+s, a...)
+	os.Exit(1)
+}
+
 func main() {
 	printBanner()
+
+	flag.StringVar(&configFileName, "configFile", "", "name of the yaml file which contains the allocation configuration")
+	flag.StringVar(&configFileName, "c", "", "name of the yaml file which contains the allocation configuration (shorthand)")
+
+	flag.StringVar(&outputFile, "outputFile", "", "file to write allocation to")
+	flag.StringVar(&outputFile, "o", "", "file to write allocation to (shorthand)")
+
+	flag.StringVar(&outputFormat, "outputFormat", "json", "format to write output file to ")
+	flag.StringVar(&outputFormat, "f", "json", "format to write output file to (shorthand)")
+
 	flag.Parse()
+
 	err := validateFlags()
 
 	if err != nil {
 		flag.Usage()
-		log.Fatalf("Got error while parsing flags: %v", err)
+		logFatal("Got error while parsing flags: %v\n", err)
 	}
 
-	configFile, err := os.ReadFile(*configFileName)
+	configFile, err := os.ReadFile(configFileName)
 	if err != nil {
-		log.Fatalf("unable to read config yaml file: %v", err)
+		logFatal("unable to read config yaml file: %v\n", err)
 	}
+
 	c, err := allocator.LoadConfigFromYaml(configFile)
 	if err != nil {
-		log.Fatalf("error while loading config file: %v", err)
+		logFatal("error while loading config file: %v\n", err)
 	}
-	log.Printf("loaded config file %s", *configFileName)
+	fmt.Printf("loaded config file %s\n", configFileName)
 
 	a, err := allocator.New(c)
 	if err != nil {
-		log.Fatalf("error while creating allocator: %v", err)
+		logFatal("error while creating allocator: %v\n", err)
 	}
 
-	log.Println("trying to find a suitable allocation...")
+	fmt.Println("trying to find a suitable allocation...")
 	alcc, err := a.Allocate()
 	if err != nil {
-		log.Fatalf("unable to allocate names, got error: %v", err)
+		logFatal("unable to allocate names, got error: %v\n", err)
 	}
 
-	alcc.PrintNameToName()
-	fmt.Println()
-	alcc.PrintNameToPassword()
-	fmt.Println()
-	alcc.PrintAliases()
-	fmt.Println()
-
-	// fmt.Println(alcc)
+	if outputFile != "" {
+		fmt.Printf("printing resulting allocation to file: %s in %s format\n", outputFile, outputFormat)
+		err := alcc.OutputToFile(outputFile, outputFormat)
+		if err != nil {
+			fmt.Printf("there was an error writing to the file got: %v", err)
+		}
+		fmt.Printf(colorGreen+"successfully wrote to %s!\n", outputFile)
+	} else {
+		fmt.Println()
+		alcc.PrintAliases()
+		fmt.Println()
+		alcc.PrintNameToName()
+		fmt.Println()
+		alcc.PrintNameToPassword()
+	}
 
 }

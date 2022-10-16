@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/BlueAlder/secret-santa-allocator/pkg/utils"
+	"golang.org/x/exp/slices"
 )
 
 type Set map[string]struct{}
@@ -19,7 +20,7 @@ type Allocator struct {
 }
 
 // creates a new instance of an Allocator
-// takes a slice of names and passwords to distribute to eachother
+// takes a config which is used to setup the allocator
 func New(config *Config) (*Allocator, error) {
 	a := &Allocator{
 		Names:     make(Set),
@@ -32,7 +33,7 @@ func New(config *Config) (*Allocator, error) {
 	if config.Names.File != "" {
 		err := utils.ReadFileIntoSlice(config.Names.File, &undupedNames)
 		if err != nil {
-			return nil, fmt.Errorf("error while loading names from file: %v", err)
+			return nil, fmt.Errorf("error while loading names from file: %w", err)
 		}
 	}
 	undupedNames = append(undupedNames, config.Names.Data...)
@@ -59,7 +60,7 @@ func New(config *Config) (*Allocator, error) {
 // password to a name to create anonymity
 func (a *Allocator) Allocate() (*Allocation, error) {
 	if err := a.validateSetup(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid allocator setup: %w", err)
 	}
 
 	allocation := newAllocation()
@@ -70,7 +71,6 @@ func (a *Allocator) Allocate() (*Allocation, error) {
 		return nil, err
 	}
 
-	// Map each name to a password
 	a.lastAllocation = *allocation
 	return allocation, nil
 }
@@ -81,14 +81,14 @@ func (a *Allocator) createAliases(alloc *Allocation) {
 	remainingPasswords := utils.MapKeysToSlice(a.Passwords)
 	for name := range a.Names {
 		password, randIdx := utils.RandomElementFromSlice(remainingPasswords)
-		alloc.aliases[name] = password
+		alloc.Aliases[name] = password
 		remainingPasswords = utils.RemoveIndex(remainingPasswords, randIdx)
 	}
 }
 
 func (a *Allocator) createAllocations(alloc *Allocation) error {
 	ctx, cancel := context.WithTimeout(context.Background(), a.Config.Timeout)
-	complete := make(chan map[string]string)
+	allocationsChan := make(chan map[string]string)
 	for i := 0; i < 5; i++ {
 		go func() {
 			remainingSantas := utils.MapKeysToSlice(a.Names)
@@ -111,39 +111,45 @@ func (a *Allocator) createAllocations(alloc *Allocation) error {
 
 				}
 			}
-			complete <- allocations
+			allocationsChan <- allocations
 		}()
 	}
 
 	select {
-	case a := <-complete:
-		alloc.allocations = a
+	case a := <-allocationsChan:
+		fmt.Println("found a suitable allocation! ✅")
+		alloc.Allocations = a
 		cancel()
 		break
 	case <-ctx.Done():
 		cancel()
-		return fmt.Errorf("unable to find a suitable allocation with the given rules within %s. May be impossible", a.Config.Timeout.String())
+		return fmt.Errorf("unable to find a suitable allocation with the given rules within %s. May be impossible ❌", a.Config.Timeout.String())
 	}
 
 	return nil
 }
 
+// checkAllocationVaildRuleset will return whether a given santa
+// is able to be allocated to a given santee, given the allocators
+// ruleset.
 func (a *Allocator) checkAllocationValidRuleset(santa string, santee string) bool {
-	// TODO: Implemenet this to check for rules being violated
+	santa = strings.ToLower(santa)
+	santee = strings.ToLower(santee)
 
 	if santa == santee {
 		return a.Config.CanAllocateSelf
 	}
 
-	rule, exists := a.Config.Rules[santa]
-	// No rule for this santa so return true
-	if !exists {
+	idx := slices.IndexFunc(a.Config.Rules, func(r Rule) bool { return strings.ToLower(r.Name) == santa })
+
+	// No rule for this santa so is valid
+	if idx < 0 {
 		return true
 	}
-
+	rule := a.Config.Rules[idx]
 	// Check for exclusion in rule
 	for _, name := range rule.CannotGet {
-		if name == santee {
+		if strings.ToLower(name) == santee {
 			return false
 		}
 	}

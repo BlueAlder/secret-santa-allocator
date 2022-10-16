@@ -35,7 +35,7 @@ func TestAllocateNoDuplicateAliases(t *testing.T) {
 
 	seenNames := make(map[string]bool)
 	seenPasswords := make(map[string]bool)
-	for name, password := range allocation.aliases {
+	for name, password := range allocation.Aliases {
 		if seenNames[name] {
 			t.Errorf("Name has appeared twice in alias allocation: %s", name)
 		}
@@ -49,8 +49,8 @@ func TestAllocationDoesNotAssignSelf(t *testing.T) {
 	a := createAllocator()
 	allocation, _ := a.Allocate()
 
-	for name, password := range allocation.allocations {
-		assigned := allocation.aliases[password]
+	for name, password := range allocation.Allocations {
+		assigned := allocation.Aliases[password]
 		if name == assigned {
 			t.Fatalf("found name with self assigned: %s", name)
 		}
@@ -62,12 +62,12 @@ func TestEveryNameIsInEachList(t *testing.T) {
 	allocation, _ := a.Allocate()
 	// check alias map
 	for name := range a.Names {
-		_, exists := allocation.aliases[name]
+		_, exists := allocation.Aliases[name]
 		if !exists {
 			t.Logf("Unable to find name in alias: %s", name)
 			t.Fatal(allocation)
 		}
-		_, exists = allocation.allocations[name]
+		_, exists = allocation.Allocations[name]
 		if !exists {
 			t.Logf("Unable to find name in allocations: %s", name)
 			t.Fatal(allocation)
@@ -126,7 +126,7 @@ func TestAllocateNoDuplicateAllocations(t *testing.T) {
 
 	seenNames := make(map[string]bool)
 	seenPasswords := make(map[string]bool)
-	for name, password := range allocation.allocations {
+	for name, password := range allocation.Allocations {
 		if seenNames[name] {
 			t.Errorf("Name has appeared twice in allocation: %s", name)
 		}
