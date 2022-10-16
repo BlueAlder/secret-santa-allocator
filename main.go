@@ -40,8 +40,7 @@ func validateFlags() error {
 	return nil
 }
 
-// func writeToFile()
-
+// logFatal prints a message in red and then runs os.Exit(1)
 func logFatal(s string, a ...any) {
 	fmt.Printf(colorRed+s, a...)
 	os.Exit(1)

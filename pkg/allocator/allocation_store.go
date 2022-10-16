@@ -10,6 +10,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// AllocationStore is a struct which models how marshalled
+// allocations should be stored as to hide the specific allocation and aliases
+// but show allocated passwords
 type AllocationStore struct {
 	Allocation         string            `json:"allocation"` // base64 encoded version of Allocation
 	AllocatedPasswords map[string]string `json:"allocated_passwords"`
@@ -32,6 +35,8 @@ func newAllocationStore(a *Allocation) (*AllocationStore, error) {
 	return as, nil
 }
 
+// outputToFile will save the allocation to a file in either
+// json or yaml depending on the fileType
 func (a *AllocationStore) ouputToFile(fileName string, fileType string) error {
 	var data []byte
 	var err error

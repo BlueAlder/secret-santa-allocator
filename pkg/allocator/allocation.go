@@ -9,8 +9,8 @@ import (
 // Allocation holds the aliases and allocations
 // for a particular derangment.
 type Allocation struct {
-	Aliases     map[string]string // name -> password
-	Allocations map[string]string // name -> name
+	Aliases     map[string]string `json:"aliases"`     // name -> password
+	Allocations map[string]string `json:"allocations"` // name -> name
 	Created     time.Time
 }
 
