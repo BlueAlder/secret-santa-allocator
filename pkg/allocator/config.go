@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config is the configuration for an allocator
 type Config struct {
 	Names struct {
 		File string   `yaml:"file"`
@@ -21,6 +22,7 @@ type Config struct {
 	Rules           []Rule        `yaml:"rules"`
 }
 
+// Rule holds information about constraints for an individual name
 type Rule struct {
 	Name      string   `yaml:"name"`
 	CannotGet []string `yaml:"cannotGet"`
@@ -31,8 +33,9 @@ var DefaultConfig = Config{
 	Timeout:         time.Second * 5,
 }
 
+// LoadConfigFromYaml receives yamlData and unmarshals it
+// into a Config
 func LoadConfigFromYaml(yamlData []byte) (*Config, error) {
-
 	c := DefaultConfig
 	err := yaml.Unmarshal(yamlData, &c)
 	if err != nil {
@@ -47,6 +50,7 @@ func LoadConfigFromYaml(yamlData []byte) (*Config, error) {
 	return &c, nil
 }
 
+// validateConfig... validates the config.
 func (c *Config) validateConfig() error {
 	// Check we have some names
 	if c.Names.File == "" && len(c.Names.Data) <= 0 {

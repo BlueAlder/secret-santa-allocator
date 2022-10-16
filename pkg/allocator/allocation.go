@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// Allocation holds the aliases and allocations
+// for a particular derangment.
 type Allocation struct {
 	Aliases     map[string]string // name -> password
 	Allocations map[string]string // name -> name
@@ -20,6 +22,8 @@ func newAllocation() *Allocation {
 	}
 }
 
+// allocatedPasswords returns a map[string]string
+// mapping each name and their assigned name (not their alias)
 func (a *Allocation) allocatedPasswords() map[string]string {
 	var passwordAllocations = make(map[string]string)
 	for name, allocated := range a.Allocations {
@@ -50,7 +54,6 @@ func (a *Allocation) PrintAliases() {
 }
 
 func (a *Allocation) String() string {
-
 	res := fmt.Sprintf("Created at %s\n", a.Created.Format("01-02-2006 15:04:05"))
 	res += "Aliases:\n"
 	for name, password := range a.Aliases {
@@ -65,6 +68,8 @@ func (a *Allocation) String() string {
 	return res
 }
 
+// OutputToFile writes an instance of Allocation to fileName
+// with either "json" or "yaml" as the fileType
 func (a *Allocation) OutputToFile(fileName string, fileType string) error {
 	as, err := newAllocationStore(a)
 	if err != nil {

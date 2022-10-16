@@ -1,3 +1,4 @@
+// Package allocator implements santa allocations
 package allocator
 
 import (
@@ -10,8 +11,10 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+// Set is a makeshift set using a map for deduping purposes
 type Set map[string]struct{}
 
+// Allocator creates a new allocation given a particular config
 type Allocator struct {
 	Names          Set // using maps here to dedupe the list
 	Passwords      Set
@@ -56,7 +59,7 @@ func New(config *Config) (*Allocator, error) {
 	return a, nil
 }
 
-// Will allocate the names to a password and then the
+// Allocate will allocate the names to a password and then the
 // password to a name to create anonymity
 func (a *Allocator) Allocate() (*Allocation, error) {
 	if err := a.validateSetup(); err != nil {
@@ -75,8 +78,8 @@ func (a *Allocator) Allocate() (*Allocation, error) {
 	return allocation, nil
 }
 
-// using the names and passwords in the allocator
-// map each name to an alias password
+// createAliases will use the names and passwords in the allocator
+// and map each name to a random alias password
 func (a *Allocator) createAliases(alloc *Allocation) {
 	remainingPasswords := utils.MapKeysToSlice(a.Passwords)
 	for name := range a.Names {
@@ -86,6 +89,10 @@ func (a *Allocator) createAliases(alloc *Allocation) {
 	}
 }
 
+// createAllocations will spin up 5 goroutines to find
+// an allocation that meets all the requirements of the config
+// returns and error if it cannot find a valid one within the configured
+// timeout value
 func (a *Allocator) createAllocations(alloc *Allocation) error {
 	ctx, cancel := context.WithTimeout(context.Background(), a.Config.Timeout)
 	allocationsChan := make(chan map[string]string)
@@ -157,6 +164,9 @@ func (a *Allocator) checkAllocationValidRuleset(santa string, santee string) boo
 	return true
 }
 
+// validateSetup ensures that a give Allocator
+// has enough names and passwords to create an
+// allocation. Does not check rules.
 func (a *Allocator) validateSetup() error {
 	if len(a.Names) < 2 {
 		return errors.New("need at least 2 names")
