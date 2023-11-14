@@ -17,9 +17,10 @@ type AllocationStore struct {
 	Allocation         string            `json:"allocation"` // base64 encoded version of Allocation
 	AllocatedPasswords map[string]string `json:"allocated_passwords"`
 	Created            time.Time         `json:"created"`
+	Name               string            `json:"allocation_name"`
 }
 
-func newAllocationStore(a *Allocation) (*AllocationStore, error) {
+func newAllocationStore(a *Allocation, name string) (*AllocationStore, error) {
 	data, err := a.toJson()
 	if err != nil {
 		return nil, err
@@ -30,6 +31,7 @@ func newAllocationStore(a *Allocation) (*AllocationStore, error) {
 		Allocation:         enc,
 		AllocatedPasswords: a.allocatedPasswords(),
 		Created:            a.Created,
+		Name:               name,
 	}
 
 	return as, nil

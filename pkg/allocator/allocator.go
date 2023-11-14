@@ -182,3 +182,13 @@ func (a *Allocator) validateSetup() error {
 
 	return nil
 }
+
+// OutputToFile writes an instance of Allocation to fileName
+// with either "json" or "yaml" as the fileType
+func (a *Allocator) OutputToFile(allocation *Allocation, fileName string, fileType string) error {
+	as, err := newAllocationStore(allocation, a.Config.Name)
+	if err != nil {
+		return err
+	}
+	return as.ouputToFile(fileName, fileType)
+}

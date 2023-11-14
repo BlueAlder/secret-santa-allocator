@@ -20,6 +20,7 @@ type Config struct {
 	CanAllocateSelf bool          `yaml:"canAllocateSelf"`
 	Timeout         time.Duration `yaml:"timeout,omitempty"`
 	Rules           []Rule        `yaml:"rules"`
+	Name            string        `yaml:"allocation_name"`
 }
 
 // Rule holds information about constraints for an individual name

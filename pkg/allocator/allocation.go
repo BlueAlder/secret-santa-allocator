@@ -68,16 +68,6 @@ func (a *Allocation) String() string {
 	return res
 }
 
-// OutputToFile writes an instance of Allocation to fileName
-// with either "json" or "yaml" as the fileType
-func (a *Allocation) OutputToFile(fileName string, fileType string) error {
-	as, err := newAllocationStore(a)
-	if err != nil {
-		return err
-	}
-	return as.ouputToFile(fileName, fileType)
-}
-
 func (a *Allocation) toJson() ([]byte, error) {
 	jsonData, err := json.Marshal(a)
 	if err != nil {

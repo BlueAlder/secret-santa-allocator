@@ -91,7 +91,7 @@ func main() {
 
 	if outputFile != "" {
 		fmt.Printf("printing resulting allocation to file: %s in %s format\n", outputFile, outputFormat)
-		err := alcc.OutputToFile(outputFile, outputFormat)
+		err := a.OutputToFile(alcc, outputFile, outputFormat)
 		if err != nil {
 			fmt.Printf("there was an error writing to the file got: %v", err)
 		}
