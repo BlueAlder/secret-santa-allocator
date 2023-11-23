@@ -20,8 +20,30 @@ type AllocationStore struct {
 	Name               string            `json:"allocation_name"`
 }
 
+type FlatAllocation struct {
+	Aliases     map[string]string `json:"aliases"`     // name -> password
+	Allocations map[string]string `json:"allocations"` // name -> name
+}
+
+func getFlatAllocationAndAliases(a *Allocation) FlatAllocation {
+
+	aliases := make(map[string]string)
+	allocations := make(map[string]string)
+
+	for _, player := range a.Players {
+		aliases[player.Name] = player.Alias
+		allocations[player.Name] = player.SantaFor.Name
+	}
+
+	return FlatAllocation{Aliases: aliases, Allocations: allocations}
+}
+
 func newAllocationStore(a *Allocation, name string) (*AllocationStore, error) {
-	data, err := a.toJson()
+	fa := getFlatAllocationAndAliases(a)
+	data, err := json.Marshal(fa)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal json data got: %w", err)
+	}
 	if err != nil {
 		return nil, err
 	}

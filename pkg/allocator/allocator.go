@@ -98,13 +98,14 @@ func (a *Allocator) Allocate() (*Allocation, error) {
 // timeout value
 func (a *Allocator) createAllocations() (*Allocation, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), a.Config.Timeout)
-	allocationsChan := make(chan map[string]string)
-	for i := 0; i < 1; i++ {
+	allocationsChan := make(chan *Allocation)
+	for i := 0; i < 5; i++ {
 		go func() {
 			alloc := newAllocation(a.Names)
 			alloc.AssignAliases(a.Passwords)
 
-			allocations := make(map[string]string)
+			remainingSantas := make([]*Player, len(alloc.Players))
+			copy(remainingSantas, alloc.Players)
 
 			// Handle must get rules
 			for _, rule := range a.Config.Rules {
@@ -128,14 +129,15 @@ func (a *Allocator) createAllocations() (*Allocation, error) {
 						fmt.Println("Invalid Allocation")
 					}
 
-					allocations[rule.Name] = rule.MustGet
 					santa.SantaFor = santee
 					santee.Santa = santa
+					remainingSantas, _ = utils.RemoveIndex(remainingSantas, santaIdx)
 
 				}
 			}
 
 			// Allocate the rest of the config
+
 			for _, santee := range alloc.Players {
 
 			infinite:
@@ -146,48 +148,48 @@ func (a *Allocator) createAllocations() (*Allocation, error) {
 					default:
 						// Player has already been allocated to someone
 						if santee.Santa != nil {
-							continue
+							break infinite
 						}
-						santa, santaIdx := utils.RandomElementFromSlice(alloc.Players)
+						santa, santaIdx := utils.RandomElementFromSlice(remainingSantas)
+						// Double check santa doesn't already have someone
 						if a.checkAllocationValidRuleset(santa, santee) {
-							allocations[santa] = santee
-							remainingSantas = utils.RemoveIndex(remainingSantas, santaIdx)
+							santa.SantaFor = santee
+							santee.Santa = santa
+							remainingSantas, _ = utils.RemoveIndex(remainingSantas, santaIdx)
 							break infinite
 						}
 					}
 
 				}
 			}
-			allocationsChan <- allocations
+			allocationsChan <- alloc
 		}()
 	}
 
 	select {
-	case a := <-allocationsChan:
+	case alloc := <-allocationsChan:
 		fmt.Println("found a suitable allocation! ✅")
-		alloc.Allocations = a
 		cancel()
-		break
+		return alloc, nil
 	case <-ctx.Done():
 		cancel()
-		return fmt.Errorf("unable to find a suitable allocation with the given rules within %s. May be impossible ❌", a.Config.Timeout.String())
+		return nil, fmt.Errorf("unable to find a suitable allocation with the given rules within %s. May be impossible ❌", a.Config.Timeout.String())
 	}
 
-	return nil
 }
 
 // checkAllocationVaildRuleset will return whether a given santa
 // is able to be allocated to a given santee, given the allocators
 // ruleset.
-func (a *Allocator) checkAllocationValidRuleset(santa string, santee string) bool {
-	santa = strings.ToLower(santa)
-	santee = strings.ToLower(santee)
+func (a *Allocator) checkAllocationValidRuleset(santa *Player, santee *Player) bool {
+	santaName := strings.ToLower(santa.Name)
+	santeeName := strings.ToLower(santee.Name)
 
 	if santa == santee {
 		return a.Config.CanAllocateSelf
 	}
 
-	idx := slices.IndexFunc(a.Config.Rules, func(r Rule) bool { return strings.ToLower(r.Name) == santa })
+	idx := slices.IndexFunc(a.Config.Rules, func(r Rule) bool { return strings.ToLower(r.Name) == santaName })
 
 	// No rule for this santa so is valid
 	if idx < 0 {
@@ -196,7 +198,7 @@ func (a *Allocator) checkAllocationValidRuleset(santa string, santee string) boo
 	rule := a.Config.Rules[idx]
 	// Check for exclusion in rule
 	for _, name := range rule.CannotGet {
-		if strings.ToLower(name) == santee {
+		if strings.ToLower(name) == santeeName {
 			return false
 		}
 	}

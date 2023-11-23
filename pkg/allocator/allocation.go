@@ -14,7 +14,7 @@ type Allocation struct {
 	Aliases     map[string]string `json:"aliases"`     // name -> password
 	Allocations map[string]string `json:"allocations"` // name -> name
 	Created     time.Time
-	Players     []*Player
+	Players     []*Player `json:"-"`
 }
 
 type Player struct {
@@ -55,6 +55,24 @@ func (a *Allocation) allocatedPasswords() map[string]string {
 		passwordAllocations[name] = a.Aliases[allocated]
 	}
 	return passwordAllocations
+}
+
+type FlatAllocation struct {
+	Aliases     map[string]string `json:"aliases"`     // name -> password
+	Allocations map[string]string `json:"allocations"` // name -> name
+}
+
+func (a *Allocation) getFlatAllocationAndAliases() FlatAllocation {
+
+	aliases := make(map[string]string)
+	allocations := make(map[string]string)
+
+	for _, player := range a.Players {
+		aliases[player.Name] = player.Alias
+		allocations[player.Name] = player.SantaFor.Name
+	}
+
+	return FlatAllocation{Aliases: aliases, Allocations: allocations}
 }
 
 func (a *Allocation) PrintNameToPassword() {
