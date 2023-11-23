@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/BlueAlder/secret-santa-allocator/pkg/utils"
 )
 
 // Allocation holds the aliases and allocations
@@ -12,13 +14,36 @@ type Allocation struct {
 	Aliases     map[string]string `json:"aliases"`     // name -> password
 	Allocations map[string]string `json:"allocations"` // name -> name
 	Created     time.Time
+	Players     []*Player
 }
 
-func newAllocation() *Allocation {
-	return &Allocation{
+type Player struct {
+	Name     string
+	Alias    string
+	SantaFor *Player
+	Santa    *Player
+}
+
+func newAllocation(playerNames []string) *Allocation {
+
+	a := &Allocation{
 		Aliases:     make(map[string]string),
 		Allocations: make(map[string]string),
+		Players:     make([]*Player, 0),
 		Created:     time.Now().Local(),
+	}
+
+	for _, name := range playerNames {
+		a.Players = append(a.Players, &Player{Name: name})
+	}
+	return a
+}
+
+func (a *Allocation) AssignAliases(passwords []string) {
+	for _, player := range a.Players {
+		password, randIdx := utils.RandomElementFromSlice(passwords)
+		player.Alias = password
+		passwords, _ = utils.RemoveIndex(passwords, randIdx)
 	}
 }
 

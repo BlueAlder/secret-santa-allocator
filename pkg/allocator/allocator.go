@@ -16,8 +16,8 @@ type Set map[string]struct{}
 
 // Allocator creates a new allocation given a particular config
 type Allocator struct {
-	Names          Set // using maps here to dedupe the list
-	Passwords      Set
+	Names          []string
+	Passwords      []string
 	Config         Config
 	lastAllocation Allocation
 }
@@ -26,8 +26,8 @@ type Allocator struct {
 // takes a config which is used to setup the allocator
 func New(config *Config) (*Allocator, error) {
 	a := &Allocator{
-		Names:     make(Set),
-		Passwords: make(Set),
+		Names:     []string{},
+		Passwords: []string{},
 		Config:    *config,
 	}
 
@@ -40,9 +40,14 @@ func New(config *Config) (*Allocator, error) {
 		}
 	}
 	undupedNames = append(undupedNames, config.Names.Data...)
+	var formattedUndupedNames []string
+
 	for _, name := range undupedNames {
-		a.Names[strings.TrimSpace(name)] = struct{}{}
+		formattedName := strings.ToLower(strings.TrimSpace(name))
+		formattedUndupedNames = append(formattedUndupedNames, formattedName)
 	}
+
+	a.Names = utils.RemoveDuplicatesFromSlice(formattedUndupedNames)
 
 	// Load passwords
 	var undupedPasswords []string
@@ -53,9 +58,7 @@ func New(config *Config) (*Allocator, error) {
 		}
 	}
 	undupedPasswords = append(undupedPasswords, config.Passwords.Data...)
-	for _, password := range undupedPasswords {
-		a.Passwords[strings.TrimSpace(password)] = struct{}{}
-	}
+	a.Passwords = utils.RemoveDuplicatesFromSlice(undupedPasswords)
 	return a, nil
 }
 
@@ -66,9 +69,8 @@ func (a *Allocator) Allocate() (*Allocation, error) {
 		return nil, fmt.Errorf("invalid allocator setup: %w", err)
 	}
 
-	allocation := newAllocation()
-	a.createAliases(allocation)
-	err := a.createAllocations(allocation)
+	// a.createAliases(allocation)
+	allocation, err := a.createAllocations()
 
 	if err != nil {
 		return nil, err
@@ -80,27 +82,61 @@ func (a *Allocator) Allocate() (*Allocation, error) {
 
 // createAliases will use the names and passwords in the allocator
 // and map each name to a random alias password
-func (a *Allocator) createAliases(alloc *Allocation) {
-	remainingPasswords := utils.MapKeysToSlice(a.Passwords)
-	for name := range a.Names {
-		password, randIdx := utils.RandomElementFromSlice(remainingPasswords)
-		alloc.Aliases[name] = password
-		remainingPasswords = utils.RemoveIndex(remainingPasswords, randIdx)
-	}
-}
+// func (a *Allocator) createAliases(alloc *Allocation) {
+
+// 	remainingPasswords := utils.MapKeysToSlice(a.Passwords)
+// 	for name := range a.Names {
+// 		password, randIdx := utils.RandomElementFromSlice(remainingPasswords)
+// 		alloc.Aliases[name] = password
+// 		remainingPasswords, _ = utils.RemoveIndex(remainingPasswords, randIdx)
+// 	}
+// }
 
 // createAllocations will spin up 5 goroutines to find
 // an allocation that meets all the requirements of the config
 // returns and error if it cannot find a valid one within the configured
 // timeout value
-func (a *Allocator) createAllocations(alloc *Allocation) error {
+func (a *Allocator) createAllocations() (*Allocation, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), a.Config.Timeout)
 	allocationsChan := make(chan map[string]string)
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 1; i++ {
 		go func() {
-			remainingSantas := utils.MapKeysToSlice(a.Names)
+			alloc := newAllocation(a.Names)
+			alloc.AssignAliases(a.Passwords)
+
 			allocations := make(map[string]string)
-			for name := range a.Names {
+
+			// Handle must get rules
+			for _, rule := range a.Config.Rules {
+				if rule.MustGet != "" {
+					santaIdx := slices.IndexFunc(alloc.Players, func(p *Player) bool { return p.Name == strings.ToLower(rule.Name) })
+					if santaIdx == -1 {
+						fmt.Println("Name in rule not found in name list")
+						return
+					}
+
+					santeeIdx := slices.IndexFunc(alloc.Players, func(p *Player) bool { return p.Name == strings.ToLower(rule.MustGet) })
+					if santeeIdx == -1 {
+						fmt.Println("Name in rule not found in name list")
+						return
+					}
+
+					santa := alloc.Players[santaIdx]
+					santee := alloc.Players[santeeIdx]
+
+					if santa.SantaFor != nil || santee.Santa != nil {
+						fmt.Println("Invalid Allocation")
+					}
+
+					allocations[rule.Name] = rule.MustGet
+					santa.SantaFor = santee
+					santee.Santa = santa
+
+				}
+			}
+
+			// Allocate the rest of the config
+			for _, santee := range alloc.Players {
 
 			infinite:
 				for {
@@ -108,9 +144,13 @@ func (a *Allocator) createAllocations(alloc *Allocation) error {
 					case <-ctx.Done():
 						return
 					default:
-						santa, santaIdx := utils.RandomElementFromSlice(remainingSantas)
-						if a.checkAllocationValidRuleset(santa, name) {
-							allocations[santa] = name
+						// Player has already been allocated to someone
+						if santee.Santa != nil {
+							continue
+						}
+						santa, santaIdx := utils.RandomElementFromSlice(alloc.Players)
+						if a.checkAllocationValidRuleset(santa, santee) {
+							allocations[santa] = santee
 							remainingSantas = utils.RemoveIndex(remainingSantas, santaIdx)
 							break infinite
 						}

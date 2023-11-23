@@ -27,12 +27,13 @@ func ReadFileIntoSlice(filename string, sliceToLoad *[]string) error {
 }
 
 // Takes a slice and an index and returns a new slice
-// with the element at s[index] removed
-func RemoveIndex[T any](s []T, index int) []T {
+// with the element at s[index] removed, also returns the removed element
+func RemoveIndex[T any](s []T, index int) ([]T, T) {
+	removed := s[index]
 	ret := make([]T, 0)
 	ret = append(ret, s[:index]...)
 	ret = append(ret, s[index+1:]...)
-	return ret
+	return ret, removed
 }
 
 // Selects a random element from a slice and returns
@@ -41,6 +42,18 @@ func RandomElementFromSlice[T any](s []T) (T, int) {
 	rand.Seed(time.Now().Unix())
 	randomChoice := rand.Intn(len(s))
 	return s[randomChoice], randomChoice
+}
+
+func RemoveDuplicatesFromSlice[T comparable](s []T) []T {
+	set := make(map[T]bool)
+	list := []T{}
+	for _, item := range s {
+		if _, exists := set[item]; !exists {
+			set[item] = true
+			list = append(list, item)
+		}
+	}
+	return list
 }
 
 func RandomElementFromSet[T comparable](s map[T]struct{}) T {

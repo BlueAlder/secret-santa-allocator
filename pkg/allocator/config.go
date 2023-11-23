@@ -27,6 +27,7 @@ type Config struct {
 type Rule struct {
 	Name      string   `yaml:"name"`
 	CannotGet []string `yaml:"cannotGet"`
+	MustGet   string   `yaml:"mustGet"`
 }
 
 var DefaultConfig = Config{
