@@ -1,7 +1,6 @@
 package allocator
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -11,10 +10,8 @@ import (
 // Allocation holds the aliases and allocations
 // for a particular derangment.
 type Allocation struct {
-	Aliases     map[string]string `json:"aliases"`     // name -> password
-	Allocations map[string]string `json:"allocations"` // name -> name
-	Created     time.Time
-	Players     []*Player `json:"-"`
+	Created time.Time
+	Players []*Player `json:"-"`
 }
 
 type Player struct {
@@ -27,10 +24,8 @@ type Player struct {
 func newAllocation(playerNames []string) *Allocation {
 
 	a := &Allocation{
-		Aliases:     make(map[string]string),
-		Allocations: make(map[string]string),
-		Players:     make([]*Player, 0),
-		Created:     time.Now().Local(),
+		Players: make([]*Player, 0),
+		Created: time.Now().Local(),
 	}
 
 	for _, name := range playerNames {
@@ -51,28 +46,10 @@ func (a *Allocation) AssignAliases(passwords []string) {
 // mapping each name and their assigned name (not their alias)
 func (a *Allocation) allocatedPasswords() map[string]string {
 	var passwordAllocations = make(map[string]string)
-	for name, allocated := range a.Allocations {
-		passwordAllocations[name] = a.Aliases[allocated]
+	for _, player := range a.Players {
+		passwordAllocations[player.Name] = player.SantaFor.Alias
 	}
 	return passwordAllocations
-}
-
-type FlatAllocation struct {
-	Aliases     map[string]string `json:"aliases"`     // name -> password
-	Allocations map[string]string `json:"allocations"` // name -> name
-}
-
-func (a *Allocation) getFlatAllocationAndAliases() FlatAllocation {
-
-	aliases := make(map[string]string)
-	allocations := make(map[string]string)
-
-	for _, player := range a.Players {
-		aliases[player.Name] = player.Alias
-		allocations[player.Name] = player.SantaFor.Name
-	}
-
-	return FlatAllocation{Aliases: aliases, Allocations: allocations}
 }
 
 func (a *Allocation) PrintNameToPassword() {
@@ -84,37 +61,29 @@ func (a *Allocation) PrintNameToPassword() {
 
 func (a *Allocation) PrintNameToName() {
 	fmt.Println("Printing names to allocated names:")
-	for name, allocated := range a.Allocations {
-		fmt.Printf("%s -> %s\n", name, allocated)
+	for _, player := range a.Players {
+		fmt.Printf("%s -> %s\n", player.Name, player.SantaFor.Name)
 	}
 }
 
 func (a *Allocation) PrintAliases() {
 	fmt.Println("Printing names aliases:")
-	for name, password := range a.Aliases {
-		fmt.Printf("%s -> %s\n", name, password)
+	for _, player := range a.Players {
+		fmt.Printf("%s -> %s\n", player.Name, player.Alias)
 	}
 }
 
 func (a *Allocation) String() string {
 	res := fmt.Sprintf("Created at %s\n", a.Created.Format("01-02-2006 15:04:05"))
 	res += "Aliases:\n"
-	for name, password := range a.Aliases {
-		res += fmt.Sprintf("%s -> %s\n", name, password)
+	for _, player := range a.Players {
+		res += fmt.Sprintf("%s -> %s\n", player.Name, player.Alias)
 	}
 	res += "\n"
 
 	res += "Allocations:\n"
-	for password, name := range a.Allocations {
-		res += fmt.Sprintf("%s -> %s\n", password, name)
+	for _, player := range a.Players {
+		res += fmt.Sprintf("%s -> %s\n", player.Name, player.SantaFor.Name)
 	}
 	return res
-}
-
-func (a *Allocation) toJson() ([]byte, error) {
-	jsonData, err := json.Marshal(a)
-	if err != nil {
-		return nil, fmt.Errorf("unable to marshal json data got: %w", err)
-	}
-	return jsonData, nil
 }

@@ -2,6 +2,8 @@ package allocator
 
 import (
 	"testing"
+
+	"golang.org/x/exp/slices"
 )
 
 func createAllocator() *Allocator {
@@ -15,8 +17,8 @@ passwords:
 }
 
 func TestFailOn1Name(t *testing.T) {
-	names := map[string]struct{}{"sam": {}}
-	passwords := map[string]struct{}{"1": {}, "2": {}, "3": {}, "4": {}, "5": {}}
+	names := []string{"sam"}
+	passwords := []string{"1", "2", "3", "4", "5"}
 	a := createAllocator()
 	a.Names = names
 	a.Passwords = passwords
@@ -35,12 +37,12 @@ func TestAllocateNoDuplicateAliases(t *testing.T) {
 
 	seenNames := make(map[string]bool)
 	seenPasswords := make(map[string]bool)
-	for name, password := range allocation.Aliases {
-		if seenNames[name] {
-			t.Errorf("Name has appeared twice in alias allocation: %s", name)
+	for _, player := range allocation.Players {
+		if seenNames[player.Name] {
+			t.Errorf("Name has appeared twice in alias allocation: %s", player.Name)
 		}
-		if seenPasswords[password] {
-			t.Errorf("Password has appeared twice in alias allocation: %s", name)
+		if seenPasswords[player.Alias] {
+			t.Errorf("Password has appeared twice in alias allocation: %s", player.Alias)
 		}
 	}
 }
@@ -49,27 +51,22 @@ func TestAllocationDoesNotAssignSelf(t *testing.T) {
 	a := createAllocator()
 	allocation, _ := a.Allocate()
 
-	for name, password := range allocation.Allocations {
-		assigned := allocation.Aliases[password]
-		if name == assigned {
-			t.Fatalf("found name with self assigned: %s", name)
+	for _, player := range allocation.Players {
+		assigned := player.SantaFor
+		if player == assigned {
+			t.Fatalf("found name with self assigned: %s", player.Name)
 		}
 	}
 }
 
-func TestEveryNameIsInEachList(t *testing.T) {
+func TestEveryNameIsInThePlayerList(t *testing.T) {
 	a := createAllocator()
 	allocation, _ := a.Allocate()
 	// check alias map
-	for name := range a.Names {
-		_, exists := allocation.Aliases[name]
-		if !exists {
-			t.Logf("Unable to find name in alias: %s", name)
-			t.Fatal(allocation)
-		}
-		_, exists = allocation.Allocations[name]
-		if !exists {
-			t.Logf("Unable to find name in allocations: %s", name)
+	for _, name := range a.Names {
+		idx := slices.IndexFunc(allocation.Players, func(p *Player) bool { return p.Name == name })
+		if idx == -1 {
+			t.Logf("Unable to find name in list of player: %s", name)
 			t.Fatal(allocation)
 		}
 	}
@@ -77,44 +74,6 @@ func TestEveryNameIsInEachList(t *testing.T) {
 	// Check allocation map
 
 }
-
-// Don't need this anymore
-// func TestEveryPasswordIsInEachList(t *testing.T) {
-// 	a := createAllocator()
-// 	allocation, _ := a.Allocate()
-
-// 	for password := range a.Passwords {
-// 		// check alias passwords
-// 		exists := false
-// 		for _, allocationPassword := range allocation.allocations {
-// 			if password == allocationPassword {
-// 				exists = true
-// 				break
-// 			}
-// 		}
-// 		if !exists {
-
-// 			t.Logf("Unable to find password in allocations: %s", password)
-// 			t.Fatal(allocation)
-// 		}
-
-// 		for password := range a.Passwords {
-// 			// check alias passwords
-// 			exists := false
-// 			for _, aliasPassword := range allocation.aliases {
-// 				if password == aliasPassword {
-// 					exists = true
-// 					break
-// 				}
-// 			}
-// 			if !exists {
-
-// 				t.Logf("Unable to find password in aliases: %s", password)
-// 				t.Fatal(allocation)
-// 			}
-// 		}
-// 	}
-// }
 
 func TestAllocateNoDuplicateAllocations(t *testing.T) {
 	allocator := createAllocator()
@@ -126,21 +85,22 @@ func TestAllocateNoDuplicateAllocations(t *testing.T) {
 
 	seenNames := make(map[string]bool)
 	seenPasswords := make(map[string]bool)
-	for name, password := range allocation.Allocations {
-		if seenNames[name] {
-			t.Errorf("Name has appeared twice in allocation: %s", name)
+	for _, player := range allocation.Players {
+		if seenNames[player.Name] {
+			t.Errorf("Name has appeared twice in allocation: %s", player.Name)
 		}
-		if seenPasswords[password] {
-			t.Errorf("Password has appeared twice in allocation: %s", name)
+		seenNames[player.Name] = true
+		if seenPasswords[player.Alias] {
+			t.Errorf("Password has appeared twice in allocation: %s", player.Alias)
 		}
+		seenPasswords[player.Alias] = true
 	}
 }
 
 func TestErrorOnLessPasswordsThanNames(t *testing.T) {
-	names := map[string]struct{}{"sam": {}, "john": {}, "billiam": {}, "john4": {}, "john3": {}, "extra name": {}}
-	passwords := map[string]struct{}{"1": {}, "2": {}, "3": {}, "4": {}, "5": {}}
+	names := []string{"sam", "john", "billiam", "john4", "john3", "extra name"}
+	passwords := []string{"1", "2", "3", "4", "5"}
 
-	// const yaml := ``
 	allocator := createAllocator()
 	allocator.Names = names
 	allocator.Passwords = passwords
