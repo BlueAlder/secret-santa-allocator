@@ -20,15 +20,18 @@ type Allocator struct {
 	Passwords      []string
 	Config         Config
 	lastAllocation Allocation
+	// maps names to names they cannot be assigned (rules)
+	exclusionRules map[string][]string
 }
 
 // creates a new instance of an Allocator
 // takes a config which is used to setup the allocator
 func New(config *Config) (*Allocator, error) {
 	a := &Allocator{
-		Names:     []string{},
-		Passwords: []string{},
-		Config:    *config,
+		Names:          []string{},
+		Passwords:      []string{},
+		Config:         *config,
+		exclusionRules: make(map[string][]string),
 	}
 
 	// Load names
@@ -59,6 +62,17 @@ func New(config *Config) (*Allocator, error) {
 	}
 	undupedPasswords = append(undupedPasswords, config.Passwords.Data...)
 	a.Passwords = utils.RemoveDuplicatesFromSlice(undupedPasswords)
+
+	// Load exclusionRules
+	for _, rule := range config.Rules {
+		for _, bannedName := range rule.CannotGet {
+			a.exclusionRules[strings.ToLower(rule.Name)] = append(a.exclusionRules[strings.ToLower(rule.Name)], strings.ToLower(bannedName))
+			if rule.Inverse {
+				a.exclusionRules[strings.ToLower(bannedName)] = append(a.exclusionRules[strings.ToLower(bannedName)], strings.ToLower(rule.Name))
+			}
+		}
+	}
+
 	return a, nil
 }
 
@@ -99,6 +113,7 @@ func (a *Allocator) Allocate() (*Allocation, error) {
 func (a *Allocator) createAllocations() (*Allocation, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), a.Config.Timeout)
 	allocationsChan := make(chan *Allocation)
+	errorChan := make(chan error)
 	for i := 0; i < 5; i++ {
 		go func() {
 			alloc := newAllocation(a.Names)
@@ -112,13 +127,13 @@ func (a *Allocator) createAllocations() (*Allocation, error) {
 				if rule.MustGet != "" {
 					santaIdx := slices.IndexFunc(alloc.Players, func(p *Player) bool { return p.Name == strings.ToLower(rule.Name) })
 					if santaIdx == -1 {
-						fmt.Println("Name in rule not found in name list")
+						errorChan <- fmt.Errorf("cannot allocate [%s] to [%s] as [%s] is not in the list of names", rule.MustGet, rule.Name, rule.Name)
 						return
 					}
 
 					santeeIdx := slices.IndexFunc(alloc.Players, func(p *Player) bool { return p.Name == strings.ToLower(rule.MustGet) })
 					if santeeIdx == -1 {
-						fmt.Println("Name in rule not found in name list")
+						errorChan <- fmt.Errorf("cannot allocate [%s] to [%s] as [%s] is not in the list of names", rule.MustGet, rule.Name, rule.MustGet)
 						return
 					}
 
@@ -171,6 +186,9 @@ func (a *Allocator) createAllocations() (*Allocation, error) {
 		fmt.Println("found a suitable allocation! ✅")
 		cancel()
 		return alloc, nil
+	case e := <-errorChan:
+		cancel()
+		return nil, fmt.Errorf("error while allocating: %v", e)
 	case <-ctx.Done():
 		cancel()
 		return nil, fmt.Errorf("unable to find a suitable allocation with the given rules within %s. May be impossible ❌", a.Config.Timeout.String())
@@ -189,15 +207,20 @@ func (a *Allocator) checkAllocationValidRuleset(santa *Player, santee *Player) b
 		return a.Config.CanAllocateSelf
 	}
 
-	idx := slices.IndexFunc(a.Config.Rules, func(r Rule) bool { return strings.ToLower(r.Name) == santaName })
-
-	// No rule for this santa so is valid
-	if idx < 0 {
+	excludedNames := a.exclusionRules[santaName]
+	if excludedNames == nil {
+		// No rule for this santa so is valid
 		return true
 	}
-	rule := a.Config.Rules[idx]
+
+	// idx := slices.IndexFunc(a.exclusionRules[santaName], func(santa string) bool { return strings.ToLower(r.Name) == santaName })
+
+	// if idx < 0 {
+	// 	return true
+	// }
+	// rule := a.Config.Rules[idx]
 	// Check for exclusion in rule
-	for _, name := range rule.CannotGet {
+	for _, name := range excludedNames {
 		if strings.ToLower(name) == santeeName {
 			return false
 		}

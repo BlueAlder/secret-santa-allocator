@@ -28,6 +28,7 @@ type Rule struct {
 	Name      string   `yaml:"name"`
 	CannotGet []string `yaml:"cannotGet"`
 	MustGet   string   `yaml:"mustGet"`
+	Inverse   bool     `yaml:"inverse"`
 }
 
 var DefaultConfig = Config{

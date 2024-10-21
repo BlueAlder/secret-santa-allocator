@@ -1,6 +1,7 @@
 package allocator
 
 import (
+	"reflect"
 	"testing"
 
 	"golang.org/x/exp/slices"
@@ -10,8 +11,19 @@ func createAllocator() *Allocator {
 	var yaml = `names: 
     data: ["sam", "tom", "jim", "grace", "bill"] # array of names that is unioned with the above file
 passwords: 
-  data: ["password1", "password2", "password3", "password4", "password5"]`
-	c, _ := LoadConfigFromYaml([]byte(yaml))
+  data: ["password1", "password2", "password3", "password4", "password5"]
+rules:
+  - name: sam
+    cannotGet: ["tom", "bill"]
+  - name: tom
+    cannotGet: ["grace"]
+    inverse: true`
+	c, err := LoadConfigFromYaml([]byte(yaml))
+
+	if err != nil {
+		panic(err)
+	}
+
 	a, _ := New(c)
 	return a
 }
@@ -110,4 +122,26 @@ func TestErrorOnLessPasswordsThanNames(t *testing.T) {
 	if err == nil {
 		t.Error("should have errored on more names than passwords")
 	}
+}
+
+func TestLoadingRules(t *testing.T) {
+	allocator := createAllocator()
+
+	want := make(map[string][]string)
+	want["sam"] = []string{"tom", "bill"}
+	want["tom"] = []string{"grace"}
+	want["grace"] = []string{"tom"}
+
+	if len(allocator.exclusionRules) != 3 {
+		t.Fatalf("expected 3 rules, got %d", len(allocator.Config.Rules))
+	}
+
+	testNames := []string{"sam", "tom", "grace"}
+
+	for _, name := range testNames {
+		if !reflect.DeepEqual(allocator.exclusionRules[name], want[name]) {
+			t.Fatalf("expected %v, got %v", want[name], allocator.exclusionRules[name])
+		}
+	}
+
 }
