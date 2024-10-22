@@ -14,6 +14,9 @@ type Allocation struct {
 	Players []*Player `json:"-"`
 }
 
+// Player represents a node in the directed graph of players
+// SantaFor is the player that the player is buying a gift for
+// Santa is the player that is buying a gift for the player
 type Player struct {
 	Name     string
 	Alias    string
@@ -21,7 +24,7 @@ type Player struct {
 	Santa    *Player
 }
 
-func newAllocation(playerNames []string) *Allocation {
+func NewAllocation(playerNames []string, passwords []string) *Allocation {
 
 	a := &Allocation{
 		Players: make([]*Player, 0),
@@ -31,15 +34,27 @@ func newAllocation(playerNames []string) *Allocation {
 	for _, name := range playerNames {
 		a.Players = append(a.Players, &Player{Name: name})
 	}
+
+	// Assign aliases
+	a.assignAliases(passwords)
 	return a
 }
 
-func (a *Allocation) AssignAliases(passwords []string) {
+func (a *Allocation) assignAliases(passwords []string) {
 	for _, player := range a.Players {
 		password, randIdx := utils.RandomElementFromSlice(passwords)
 		player.Alias = password
 		passwords, _ = utils.RemoveIndex(passwords, randIdx)
 	}
+}
+
+func (a *Allocation) GetPlayer(name string) *Player {
+	for _, player := range a.Players {
+		if player.Name == name {
+			return player
+		}
+	}
+	return nil
 }
 
 // allocatedPasswords returns a map[string]string

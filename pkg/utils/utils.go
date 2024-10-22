@@ -39,7 +39,6 @@ func RemoveIndex[T any](s []T, index int) ([]T, T) {
 // Selects a random element from a slice and returns
 // it and it's index
 func RandomElementFromSlice[T any](s []T) (T, int) {
-	rand.Seed(time.Now().Unix())
 	randomChoice := rand.Intn(len(s))
 	return s[randomChoice], randomChoice
 }

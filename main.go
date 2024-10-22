@@ -78,7 +78,7 @@ func main() {
 	}
 	fmt.Printf("loaded config file %s\n", configFileName)
 
-	a, err := allocator.New(c)
+	a, err := allocator.NewFromConfig(c)
 	if err != nil {
 		logFatal("error while creating allocator: %v\n", err)
 	}
@@ -88,6 +88,7 @@ func main() {
 	if err != nil {
 		logFatal("unable to allocate names, got error: %v\n", err)
 	}
+	fmt.Println("found a suitable allocation! ✅")
 
 	if outputFile != "" {
 		fmt.Printf("printing resulting allocation to file: %s in %s format\n", outputFile, outputFormat)

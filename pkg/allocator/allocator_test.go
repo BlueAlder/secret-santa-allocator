@@ -24,7 +24,7 @@ rules:
 		panic(err)
 	}
 
-	a, _ := New(c)
+	a, _ := NewFromConfig(c)
 	return a
 }
 
@@ -32,8 +32,8 @@ func TestFailOn1Name(t *testing.T) {
 	names := []string{"sam"}
 	passwords := []string{"1", "2", "3", "4", "5"}
 	a := createAllocator()
-	a.Names = names
-	a.Passwords = passwords
+	a.names = names
+	a.passwords = passwords
 	if _, err := a.Allocate(); err == nil {
 		t.Fatalf("should fail on 1 name")
 	}
@@ -75,7 +75,7 @@ func TestEveryNameIsInThePlayerList(t *testing.T) {
 	a := createAllocator()
 	allocation, _ := a.Allocate()
 	// check alias map
-	for _, name := range a.Names {
+	for _, name := range a.names {
 		idx := slices.IndexFunc(allocation.Players, func(p *Player) bool { return p.Name == name })
 		if idx == -1 {
 			t.Logf("Unable to find name in list of player: %s", name)
@@ -114,8 +114,8 @@ func TestErrorOnLessPasswordsThanNames(t *testing.T) {
 	passwords := []string{"1", "2", "3", "4", "5"}
 
 	allocator := createAllocator()
-	allocator.Names = names
-	allocator.Passwords = passwords
+	allocator.names = names
+	allocator.passwords = passwords
 
 	_, err := allocator.Allocate()
 
@@ -133,7 +133,7 @@ func TestLoadingRules(t *testing.T) {
 	want["grace"] = []string{"tom"}
 
 	if len(allocator.exclusionRules) != 3 {
-		t.Fatalf("expected 3 rules, got %d", len(allocator.Config.Rules))
+		t.Fatalf("expected 3 rules, got %d", len(allocator.exclusionRules))
 	}
 
 	testNames := []string{"sam", "tom", "grace"}
@@ -144,4 +144,57 @@ func TestLoadingRules(t *testing.T) {
 		}
 	}
 
+}
+
+// tests setting multiple mustGet rules for a single name
+func TestMultipleMustGetRules(t *testing.T) {
+	a := New()
+	a.names = []string{"sam", "tom", "jim", "grace", "bill"}
+	a.passwords = []string{"password1", "password2", "password3", "password4", "password5"}
+	a.mustGetRules["sam"] = "jim"
+	a.mustGetRules["grace"] = "jim"
+
+	_, err := a.Allocate()
+	if err == nil {
+		t.Fatalf("should fail on multiple must get rules")
+	}
+}
+
+// tests setting a mustGet rule should always assign the same santa
+func TestMustGetRule(t *testing.T) {
+	a := New()
+	a.names = []string{"sam", "tom", "jim", "grace", "bill"}
+	a.passwords = []string{"password1", "password2", "password3", "password4", "password5"}
+	a.mustGetRules["sam"] = "jim"
+
+	for i := 0; i < 100; i++ {
+		allocation, err := a.Allocate()
+		if err != nil {
+			t.Fatalf("should not fail on must get rule")
+		}
+
+		if allocation.GetPlayer("sam").SantaFor != allocation.GetPlayer("jim") || allocation.GetPlayer("jim").Santa != allocation.GetPlayer("sam") {
+			t.Fatalf("must get rule not followed")
+		}
+	}
+}
+
+// test must never get
+
+func TestMustNeverGetRule(t *testing.T) {
+	a := New()
+	a.names = []string{"sam", "tom", "jim", "grace", "bill"}
+	a.passwords = []string{"password1", "password2", "password3", "password4", "password5"}
+	a.exclusionRules["sam"] = []string{"tom"}
+
+	for i := 0; i < 100; i++ {
+		allocation, err := a.Allocate()
+		if err != nil {
+			t.Fatalf("should not fail on must never get rule")
+		}
+
+		if allocation.GetPlayer("sam").SantaFor == allocation.GetPlayer("tom") || allocation.GetPlayer("tom").Santa == allocation.GetPlayer("sam") {
+			t.Fatalf("must never get rule not followed")
+		}
+	}
 }
