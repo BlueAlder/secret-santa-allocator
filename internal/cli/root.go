@@ -62,30 +62,13 @@ func initConfig() {
 }
 
 func runAllocation() {
-	// Logic adapted from original main.go
-	// We need to load the config from the file specified or viper
-	// For now, let's assume the config file passed to viper contains the allocation config
-	// OR we keep the original behavior of passing a specific config file for the allocation data.
-	
-	// The original main.go took a config file for the allocation rules/names.
-	// Viper might be used for app-level config, but here the "config" IS the allocation data.
-	// So we can use viper to unmarshal it.
-
-	var config allocator.Config
+	printBanner()
+	config := allocator.DefaultConfig
 	if err := viper.Unmarshal(&config); err != nil {
 		slog.Error("Unable to decode into struct", "error", err)
 		os.Exit(1)
 	}
 
-	// Validate config manually if needed, or trust allocator
-	// The allocator.LoadConfigFromYaml did validation.
-	// We might need to call validate.
-	
-	// Since we are using viper, we might have already read the config.
-	// But wait, the original main.go read a specific file.
-	// If cfgFile is set, viper read it.
-	
-	// We need to handle the case where no config is provided.
 	if viper.ConfigFileUsed() == "" {
 		slog.Error("No configuration file provided")
 		os.Exit(1)

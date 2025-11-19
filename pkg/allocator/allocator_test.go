@@ -2,9 +2,8 @@ package allocator
 
 import (
 	"reflect"
+	"slices"
 	"testing"
-
-	"golang.org/x/exp/slices"
 )
 
 func createAllocator() *Allocator {

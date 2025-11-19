@@ -10,12 +10,12 @@ import (
 // Config is the configuration for an allocator
 type Config struct {
 	Names struct {
-		File string   `yaml:"file" mapstructure:"names-file"`
-		Data []string `yaml:"data" mapstructure:"names-data"`
+		File string   `yaml:"file" mapstructure:"file"`
+		Data []string `yaml:"data" mapstructure:"data"`
 	} `yaml:"names" mapstructure:"names"`
 	Passwords struct {
-		File string   `yaml:"file" mapstructure:"passwords-file"`
-		Data []string `yaml:"data" mapstructure:"passwords-data"`
+		File string   `yaml:"file" mapstructure:"file"`
+		Data []string `yaml:"data" mapstructure:"data"`
 	} `yaml:"passwords" mapstructure:"passwords"`
 	CanAllocateSelf bool          `yaml:"canAllocateSelf" mapstructure:"canAllocateSelf"`
 	Timeout         time.Duration `yaml:"timeout,omitempty" mapstructure:"timeout"`

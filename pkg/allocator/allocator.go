@@ -5,11 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/BlueAlder/secret-santa-allocator/pkg/utils"
-	"golang.org/x/exp/slices"
 )
 
 // Set is a makeshift set using a map for deduping purposes
@@ -46,26 +46,41 @@ func New() *Allocator {
 
 // creates a new instance of an Allocator
 // takes a config which is used to setup the allocator
-func NewFromConfig(config *Config) (*Allocator, error) {
+func NewFromConfig(conf *Config) (*Allocator, error) {
 	a := &Allocator{
 		names:           []string{},
 		passwords:       []string{},
-		CanAllocateSelf: config.CanAllocateSelf,
-		timeout:         config.Timeout,
+		CanAllocateSelf: conf.CanAllocateSelf,
+		timeout:         conf.Timeout,
 		exclusionRules:  make(map[string][]string),
 		mustGetRules:    make(map[string]string),
-		Name:            config.Name,
+		Name:            conf.Name,
 	}
 
-	// Load names
+	if err := a.loadNames(conf); err != nil {
+		return nil, err
+	}
+
+	if err := a.loadPasswords(conf); err != nil {
+		return nil, err
+	}
+
+	if err := a.loadRules(conf); err != nil {
+		return nil, err
+	}
+
+	return a, nil
+}
+
+func (a *Allocator) loadNames(conf *Config) error {
 	var undupedNames []string
-	if config.Names.File != "" {
-		err := utils.ReadFileIntoSlice(config.Names.File, &undupedNames)
+	if conf.Names.File != "" {
+		err := utils.ReadFileIntoSlice(conf.Names.File, &undupedNames)
 		if err != nil {
-			return nil, fmt.Errorf("error while loading names from file: %w", err)
+			return fmt.Errorf("error while loading names from file: %w", err)
 		}
 	}
-	undupedNames = append(undupedNames, config.Names.Data...)
+	undupedNames = append(undupedNames, conf.Names.Data...)
 	var formattedUndupedNames []string
 
 	for _, name := range undupedNames {
@@ -74,27 +89,32 @@ func NewFromConfig(config *Config) (*Allocator, error) {
 	}
 
 	a.names = utils.RemoveDuplicatesFromSlice(formattedUndupedNames)
+	return nil
+}
 
-	// Load passwords
+func (a *Allocator) loadPasswords(conf *Config) error {
 	var undupedPasswords []string
-	if config.Passwords.File != "" {
-		err := utils.ReadFileIntoSlice(config.Passwords.File, &undupedPasswords)
+	if conf.Passwords.File != "" {
+		err := utils.ReadFileIntoSlice(conf.Passwords.File, &undupedPasswords)
 		if err != nil {
-			return nil, fmt.Errorf("error while loading passwords from file: %v", err)
+			return fmt.Errorf("error while loading passwords from file: %v", err)
 		}
 	}
-	undupedPasswords = append(undupedPasswords, config.Passwords.Data...)
+	undupedPasswords = append(undupedPasswords, conf.Passwords.Data...)
 	a.passwords = utils.RemoveDuplicatesFromSlice(undupedPasswords)
+	return nil
+}
 
+func (a *Allocator) loadRules(conf *Config) error {
 	// Load exclusionRules
-	for _, rule := range config.Rules {
+	for _, rule := range conf.Rules {
 		for _, bannedName := range rule.CannotGet {
 			// check if the name is in the list of names
 			if !slices.Contains(a.names, strings.ToLower(bannedName)) {
-				return nil, fmt.Errorf("name [%s] in exclusion rule is not in the list of names", bannedName)
+				return fmt.Errorf("name [%s] in exclusion rule is not in the list of names", bannedName)
 			}
 			if !slices.Contains(a.names, strings.ToLower(rule.Name)) {
-				return nil, fmt.Errorf("name [%s] in exclusion rule is not in the list of names", rule.Name)
+				return fmt.Errorf("name [%s] in exclusion rule is not in the list of names", rule.Name)
 			}
 
 			a.exclusionRules[strings.ToLower(rule.Name)] = append(a.exclusionRules[strings.ToLower(rule.Name)], strings.ToLower(bannedName))
@@ -105,16 +125,15 @@ func NewFromConfig(config *Config) (*Allocator, error) {
 	}
 
 	// Load mustGet Rules
-	for _, rule := range config.Rules {
+	for _, rule := range conf.Rules {
 		if rule.MustGet != "" {
 			if !slices.Contains(a.names, rule.MustGet) {
-				return nil, fmt.Errorf("name [%s] in must get rule is not in the list of names", rule.MustGet)
+				return fmt.Errorf("name [%s] in must get rule is not in the list of names", rule.MustGet)
 			}
 			a.mustGetRules[strings.ToLower(rule.Name)] = strings.ToLower(rule.MustGet)
 		}
 	}
-
-	return a, nil
+	return nil
 }
 
 // Allocate will allocate the names to a password and then the
