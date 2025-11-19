@@ -76,3 +76,9 @@ func MapKeysToSlice[T comparable, K any](m map[T]K) []T {
 	}
 	return s
 }
+
+func ShuffleSlice[T any](s []T) {
+	rand.Shuffle(len(s), func(i, j int) {
+		s[i], s[j] = s[j], s[i]
+	})
+}

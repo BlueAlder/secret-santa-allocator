@@ -2,7 +2,6 @@
 package allocator
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -147,131 +146,123 @@ func (a *Allocator) Allocate() (*Allocation, error) {
 		return nil, fmt.Errorf("invalid allocator rules: %w", err)
 	}
 
-	// a.createAliases(allocation)
-	allocation, err := a.createAllocations()
+	alloc := NewAllocation(a.names, a.passwords)
 
-	if err != nil {
-		return nil, err
+	// 1. Handle MustGet rules
+	// Keep track of who is available to be a Santa
+	availableSantas := make([]*Player, len(alloc.Players))
+	copy(availableSantas, alloc.Players)
+
+	for santaName, mustGet := range a.mustGetRules {
+		santa := alloc.GetPlayer(santaName)
+		santee := alloc.GetPlayer(mustGet)
+
+		if santa == nil || santee == nil {
+			return nil, fmt.Errorf("must get rule contains unknown player: %s -> %s", santaName, mustGet)
+		}
+
+		if santa.SantaFor != nil {
+			return nil, fmt.Errorf("player %s is assigned to multiple people", santa.Name)
+		}
+		if santee.Santa != nil {
+			return nil, fmt.Errorf("player %s is assigned multiple santas", santee.Name)
+		}
+
+		// Assign
+		santa.SantaFor = santee
+		santee.Santa = santa
+
+		// Remove from available santas
+		idx := slices.Index(availableSantas, santa)
+		if idx == -1 {
+			// Should not happen if logic is correct
+			return nil, fmt.Errorf("player %s already used as santa", santa.Name)
+		}
+		availableSantas = slices.Delete(availableSantas, idx, idx+1)
 	}
 
-	a.lastAllocation = *allocation
-	return allocation, nil
-}
-
-// createAliases will use the names and passwords in the allocator
-// and map each name to a random alias password
-// func (a *Allocator) createAliases(alloc *Allocation) {
-
-// 	remainingPasswords := utils.MapKeysToSlice(a.Passwords)
-// 	for name := range a.Names {
-// 		password, randIdx := utils.RandomElementFromSlice(remainingPasswords)
-// 		alloc.Aliases[name] = password
-// 		remainingPasswords, _ = utils.RemoveIndex(remainingPasswords, randIdx)
-// 	}
-// }
-
-// createAllocations will spin up 5 goroutines to find
-// an allocation that meets all the requirements of the config
-// returns and error if it cannot find a valid one within the configured
-// timeout value
-func (a *Allocator) createAllocations() (*Allocation, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
-	allocationsChan := make(chan *Allocation)
-	errorChan := make(chan error)
-	for i := 0; i < 15; i++ {
-		go func() {
-			alloc := NewAllocation(a.names, a.passwords)
-
-			remainingSantas := make([]*Player, len(alloc.Players))
-			copy(remainingSantas, alloc.Players)
-
-			// Handle must get rules
-			for santa, mustGet := range a.mustGetRules {
-				santaIdx := slices.IndexFunc(alloc.Players, func(p *Player) bool { return p.Name == santa })
-				santeeIdx := slices.IndexFunc(alloc.Players, func(p *Player) bool { return p.Name == mustGet })
-				if santaIdx == -1 {
-					errorChan <- fmt.Errorf("cannot allocate [%s] to [%s] as [%s] is not in the list of names", mustGet, santa, santa)
-					return
-				}
-
-				santa := alloc.Players[santaIdx]
-				santee := alloc.Players[santeeIdx]
-
-				if santa.SantaFor != nil || santee.Santa != nil {
-					errorChan <- fmt.Errorf("cannot allocate [%s] to [%s] as they are already allocated", santa.Name, santee.Name)
-					return
-				}
-
-				santa.SantaFor = santee
-				santee.Santa = santa
-				remainingSantas, _ = utils.RemoveIndex(remainingSantas, santaIdx)
-			}
-
-			// Allocate the rest of the config
-
-			for _, santee := range alloc.Players {
-
-			infinite:
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					default:
-						// Player has already been allocated to someone
-						if santee.Santa != nil {
-							break infinite
-						}
-						santa, santaIdx := utils.RandomElementFromSlice(remainingSantas)
-						// Double check santa doesn't already have someone
-						if a.checkAllocationValidRuleset(santa, santee) {
-							santa.SantaFor = santee
-							santee.Santa = santa
-							remainingSantas, _ = utils.RemoveIndex(remainingSantas, santaIdx)
-							break infinite
-						}
-					}
-
-				}
-			}
-			allocationsChan <- alloc
-		}()
-	}
-
-	select {
-	case alloc := <-allocationsChan:
-		// Allocation succesfull, close channels.
-		cancel()
+	// 2. Solve for the rest using backtracking
+	if a.solve(0, alloc.Players, availableSantas) {
+		a.lastAllocation = *alloc
 		return alloc, nil
-	case e := <-errorChan:
-		cancel()
-		return nil, fmt.Errorf("error while allocating: %v", e)
-	case <-ctx.Done():
-		cancel()
-		return nil, fmt.Errorf("unable to find a suitable allocation with the given rules within %s. May be impossible ❌", a.timeout.String())
 	}
 
+	return nil, fmt.Errorf("unable to find a valid allocation")
 }
 
-// checkAllocationVaildRuleset will return whether a given santa
-// is able to be allocated to a given santee, given the allocators
-// ruleset.
-func (a *Allocator) checkAllocationValidRuleset(santa *Player, santee *Player) bool {
-	santaName := strings.ToLower(santa.Name)
-	santeeName := strings.ToLower(santee.Name)
-
-	if santa == santee {
-		return a.CanAllocateSelf
-	}
-
-	excludedNames := a.exclusionRules[santaName]
-	if excludedNames == nil {
-		// No rule for this santa so is valid
+func (a *Allocator) solve(santeeIndex int, players []*Player, availableSantas []*Player) bool {
+	// Base case: all players have been processed as santees
+	if santeeIndex >= len(players) {
 		return true
 	}
 
-	for _, name := range excludedNames {
-		if strings.ToLower(name) == santeeName {
-			return false
+	santee := players[santeeIndex]
+
+	// If this player already has a santa (from MustGet), skip to next
+	if santee.Santa != nil {
+		return a.solve(santeeIndex+1, players, availableSantas)
+	}
+
+	// Try to find a santa for this santee
+	// Shuffle available santas to ensure randomness
+	// We create a copy of indices to shuffle, or just shuffle the slice if we don't mind mutating it (we pass a new slice in recursion usually, but here availableSantas shrinks)
+	// Actually, to backtrack efficiently, we can just iterate and swap.
+	// But to be random, we should iterate in random order.
+
+	// Let's make a copy of availableSantas to shuffle for this step's iteration order
+	// But we need to pass the *remaining* santas to the next step.
+
+	candidates := make([]*Player, len(availableSantas))
+	copy(candidates, availableSantas)
+	utils.ShuffleSlice(candidates) // Assuming utils has a shuffle, or I'll use rand.Shuffle if not.
+	// Wait, I should check if utils has ShuffleSlice.
+	// If not, I'll use rand.Shuffle.
+	// I'll check utils first or just implement shuffle inline.
+	// The original code used utils.RandomElementFromSlice.
+
+	// Let's assume I can just iterate through candidates.
+
+	for _, santa := range candidates {
+		if a.canAssign(santa, santee) {
+			// Assign
+			santa.SantaFor = santee
+			santee.Santa = santa
+
+			// Prepare next available santas
+			// We need to remove 'santa' from the list passed to the next recursive call
+			nextAvailable := make([]*Player, 0, len(availableSantas)-1)
+			for _, p := range availableSantas {
+				if p != santa {
+					nextAvailable = append(nextAvailable, p)
+				}
+			}
+
+			// Recurse
+			if a.solve(santeeIndex+1, players, nextAvailable) {
+				return true
+			}
+
+			// Backtrack
+			santa.SantaFor = nil
+			santee.Santa = nil
+		}
+	}
+
+	return false
+}
+
+func (a *Allocator) canAssign(santa, santee *Player) bool {
+	if santa == santee && !a.CanAllocateSelf {
+		return false
+	}
+
+	// Check exclusion rules
+	// exclusionRules maps Santa Name -> List of names they cannot get
+	if excluded, ok := a.exclusionRules[strings.ToLower(santa.Name)]; ok {
+		for _, name := range excluded {
+			if strings.EqualFold(name, santee.Name) {
+				return false
+			}
 		}
 	}
 
@@ -282,12 +273,17 @@ func (a *Allocator) checkAllocationValidRuleset(santa *Player, santee *Player) b
 // has enough names and passwords to create an
 // allocation. Does not check rules.
 func (a *Allocator) validateSetup() error {
-	if len(a.names) < 2 {
-		return errors.New("need at least 2 names")
+	minNames := 2
+	if a.CanAllocateSelf {
+		minNames = 1
 	}
 
-	if len(a.passwords) < 2 {
-		return errors.New("need at least 2 passwords")
+	if len(a.names) < minNames {
+		return fmt.Errorf("need at least %d names", minNames)
+	}
+
+	if len(a.passwords) < minNames {
+		return fmt.Errorf("need at least %d passwords", minNames)
 	}
 
 	if len(a.names) > len(a.passwords) {
