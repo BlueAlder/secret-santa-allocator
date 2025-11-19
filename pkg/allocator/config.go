@@ -10,25 +10,25 @@ import (
 // Config is the configuration for an allocator
 type Config struct {
 	Names struct {
-		File string   `yaml:"file"`
-		Data []string `yaml:"data"`
-	}
+		File string   `yaml:"file" mapstructure:"names-file"`
+		Data []string `yaml:"data" mapstructure:"names-data"`
+	} `yaml:"names" mapstructure:"names"`
 	Passwords struct {
-		File string   `yaml:"file"`
-		Data []string `yaml:"data"`
-	}
-	CanAllocateSelf bool          `yaml:"canAllocateSelf"`
-	Timeout         time.Duration `yaml:"timeout,omitempty"`
-	Rules           []Rule        `yaml:"rules"`
-	Name            string        `yaml:"allocation_name"`
+		File string   `yaml:"file" mapstructure:"passwords-file"`
+		Data []string `yaml:"data" mapstructure:"passwords-data"`
+	} `yaml:"passwords" mapstructure:"passwords"`
+	CanAllocateSelf bool          `yaml:"canAllocateSelf" mapstructure:"canAllocateSelf"`
+	Timeout         time.Duration `yaml:"timeout,omitempty" mapstructure:"timeout"`
+	Rules           []Rule        `yaml:"rules" mapstructure:"rules"`
+	Name            string        `yaml:"allocation_name" mapstructure:"allocation_name"`
 }
 
 // Rule holds information about constraints for an individual name
 type Rule struct {
-	Name      string   `yaml:"name"`
-	CannotGet []string `yaml:"cannotGet"`
-	MustGet   string   `yaml:"mustGet"`
-	Inverse   bool     `yaml:"inverse"`
+	Name      string   `yaml:"name" mapstructure:"name"`
+	CannotGet []string `yaml:"cannotGet" mapstructure:"cannotGet"`
+	MustGet   string   `yaml:"mustGet" mapstructure:"mustGet"`
+	Inverse   bool     `yaml:"inverse" mapstructure:"inverse"`
 }
 
 var DefaultConfig = Config{

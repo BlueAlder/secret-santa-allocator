@@ -90,10 +90,10 @@ func NewFromConfig(config *Config) (*Allocator, error) {
 	for _, rule := range config.Rules {
 		for _, bannedName := range rule.CannotGet {
 			// check if the name is in the list of names
-			if !slices.Contains(a.names, bannedName) {
+			if !slices.Contains(a.names, strings.ToLower(bannedName)) {
 				return nil, fmt.Errorf("name [%s] in exclusion rule is not in the list of names", bannedName)
 			}
-			if !slices.Contains(a.names, rule.Name) {
+			if !slices.Contains(a.names, strings.ToLower(rule.Name)) {
 				return nil, fmt.Errorf("name [%s] in exclusion rule is not in the list of names", rule.Name)
 			}
 
