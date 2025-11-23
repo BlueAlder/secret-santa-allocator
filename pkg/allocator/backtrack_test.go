@@ -23,8 +23,8 @@ func TestBacktrackingConstraints(t *testing.T) {
 
 	check := func(santa, santee string) {
 		s := alloc.GetPlayer(santa)
-		if s.SantaFor.Name != santee {
-			t.Errorf("expected %s -> %s, got %s -> %s", santa, santee, santa, s.SantaFor.Name)
+		if s.santaFor.name != santee {
+			t.Errorf("expected %s -> %s, got %s -> %s", santa, santee, santa, s.santaFor.name)
 		}
 	}
 
@@ -61,7 +61,7 @@ func TestCanAllocateSelf(t *testing.T) {
 		t.Fatalf("failed to allocate self: %v", err)
 	}
 
-	if alloc.GetPlayer("A").SantaFor.Name != "A" {
-		t.Errorf("expected A -> A, got A -> %s", alloc.GetPlayer("A").SantaFor.Name)
+	if alloc.GetPlayer("A").santaFor.name != "A" {
+		t.Errorf("expected A -> A, got A -> %s", alloc.GetPlayer("A").santaFor.name)
 	}
 }

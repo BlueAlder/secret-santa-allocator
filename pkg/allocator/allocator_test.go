@@ -48,12 +48,12 @@ func TestAllocateNoDuplicateAliases(t *testing.T) {
 
 	seenNames := make(map[string]bool)
 	seenPasswords := make(map[string]bool)
-	for _, player := range allocation.Players {
-		if seenNames[player.Name] {
-			t.Errorf("Name has appeared twice in alias allocation: %s", player.Name)
+	for _, player := range allocation.players {
+		if seenNames[player.name] {
+			t.Errorf("Name has appeared twice in alias allocation: %s", player.name)
 		}
-		if seenPasswords[player.Alias] {
-			t.Errorf("Password has appeared twice in alias allocation: %s", player.Alias)
+		if seenPasswords[player.alias] {
+			t.Errorf("Password has appeared twice in alias allocation: %s", player.alias)
 		}
 	}
 }
@@ -62,10 +62,10 @@ func TestAllocationDoesNotAssignSelf(t *testing.T) {
 	a := createAllocator()
 	allocation, _ := a.Allocate()
 
-	for _, player := range allocation.Players {
-		assigned := player.SantaFor
+	for _, player := range allocation.players {
+		assigned := player.santaFor
 		if player == assigned {
-			t.Fatalf("found name with self assigned: %s", player.Name)
+			t.Fatalf("found name with self assigned: %s", player.name)
 		}
 	}
 }
@@ -75,7 +75,7 @@ func TestEveryNameIsInThePlayerList(t *testing.T) {
 	allocation, _ := a.Allocate()
 	// check alias map
 	for _, name := range a.names {
-		idx := slices.IndexFunc(allocation.Players, func(p *Player) bool { return p.Name == name })
+		idx := slices.IndexFunc(allocation.players, func(p *player) bool { return p.name == name })
 		if idx == -1 {
 			t.Logf("Unable to find name in list of player: %s", name)
 			t.Fatal(allocation)
@@ -96,15 +96,15 @@ func TestAllocateNoDuplicateAllocations(t *testing.T) {
 
 	seenNames := make(map[string]bool)
 	seenPasswords := make(map[string]bool)
-	for _, player := range allocation.Players {
-		if seenNames[player.Name] {
-			t.Errorf("Name has appeared twice in allocation: %s", player.Name)
+	for _, player := range allocation.players {
+		if seenNames[player.name] {
+			t.Errorf("Name has appeared twice in allocation: %s", player.name)
 		}
-		seenNames[player.Name] = true
-		if seenPasswords[player.Alias] {
-			t.Errorf("Password has appeared twice in allocation: %s", player.Alias)
+		seenNames[player.name] = true
+		if seenPasswords[player.alias] {
+			t.Errorf("Password has appeared twice in allocation: %s", player.alias)
 		}
-		seenPasswords[player.Alias] = true
+		seenPasswords[player.alias] = true
 	}
 }
 
@@ -172,7 +172,7 @@ func TestMustGetRule(t *testing.T) {
 			t.Fatalf("should not fail on must get rule")
 		}
 
-		if allocation.GetPlayer("sam").SantaFor != allocation.GetPlayer("jim") || allocation.GetPlayer("jim").Santa != allocation.GetPlayer("sam") {
+		if allocation.GetPlayer("sam").santaFor != allocation.GetPlayer("jim") || allocation.GetPlayer("jim").santa != allocation.GetPlayer("sam") {
 			t.Fatalf("must get rule not followed")
 		}
 	}
@@ -192,7 +192,7 @@ func TestMustNeverGetRule(t *testing.T) {
 			t.Fatalf("should not fail on must never get rule")
 		}
 
-		if allocation.GetPlayer("sam").SantaFor == allocation.GetPlayer("tom") || allocation.GetPlayer("tom").Santa == allocation.GetPlayer("sam") {
+		if allocation.GetPlayer("sam").santaFor == allocation.GetPlayer("tom") || allocation.GetPlayer("tom").santa == allocation.GetPlayer("sam") {
 			t.Fatalf("must never get rule not followed")
 		}
 	}

@@ -25,33 +25,30 @@ type FlatAllocation struct {
 	Allocations map[string]string `json:"allocations"` // name -> name
 }
 
-func getFlatAllocationAndAliases(a *Allocation) FlatAllocation {
+func getFlatAllocationAndAliases(a *allocation) FlatAllocation {
 
 	aliases := make(map[string]string)
 	allocations := make(map[string]string)
 
-	for _, player := range a.Players {
-		aliases[player.Name] = player.Alias
-		allocations[player.Name] = player.SantaFor.Name
+	for _, player := range a.players {
+		aliases[player.name] = player.alias
+		allocations[player.name] = player.santaFor.name
 	}
 
 	return FlatAllocation{Aliases: aliases, Allocations: allocations}
 }
 
-func newAllocationStore(a *Allocation, name string) (*AllocationStore, error) {
+func newAllocationStore(a *allocation, name string) (*AllocationStore, error) {
 	fa := getFlatAllocationAndAliases(a)
 	data, err := json.Marshal(fa)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal json data got: %w", err)
 	}
-	if err != nil {
-		return nil, err
-	}
 	enc := base64.StdEncoding.EncodeToString(data)
 
 	as := &AllocationStore{
 		Allocation:         enc,
-		AllocatedPasswords: a.allocatedPasswords(),
+		AllocatedPasswords: a.AllocatedPasswords(),
 		Created:            a.Created,
 		Name:               name,
 	}
@@ -59,9 +56,8 @@ func newAllocationStore(a *Allocation, name string) (*AllocationStore, error) {
 	return as, nil
 }
 
-// outputToFile will save the allocation to a file in either
-// json or yaml depending on the fileType
-func (a *AllocationStore) ouputToFile(fileName string, fileType string) error {
+// outputToBytes returns the allocation as bytes
+func (a *AllocationStore) outputToBytes(fileType string) ([]byte, error) {
 	var data []byte
 	var err error
 	switch fileType {
@@ -70,11 +66,21 @@ func (a *AllocationStore) ouputToFile(fileName string, fileType string) error {
 	case "json":
 		data, err = json.MarshalIndent(a, "", "\t")
 	default:
-		return fmt.Errorf("OutputToFile invalid file type: %s", fileType)
+		return nil, fmt.Errorf("OutputToBytes invalid file type: %s", fileType)
 	}
 
 	if err != nil {
-		return fmt.Errorf("unable to marshal data got: %w", err)
+		return nil, fmt.Errorf("unable to marshal data got: %w", err)
+	}
+	return data, nil
+}
+
+// outputToFile will save the allocation to a file in either
+// json or yaml depending on the fileType
+func (a *AllocationStore) ouputToFile(fileName string, fileType string) error {
+	data, err := a.outputToBytes(fileType)
+	if err != nil {
+		return err
 	}
 
 	err = os.WriteFile(fileName, data, 0644)

@@ -18,7 +18,7 @@ type Set map[string]struct{}
 type Allocator struct {
 	names          []string
 	passwords      []string
-	lastAllocation Allocation
+	lastAllocation allocation
 	// maps names to names they cannot be assigned (rules)
 	exclusionRules map[string][]string
 	// maps names to names they must be assigned (rules)
@@ -137,7 +137,7 @@ func (a *Allocator) loadRules(conf *Config) error {
 
 // Allocate will allocate the names to a password and then the
 // password to a name to create anonymity
-func (a *Allocator) Allocate() (*Allocation, error) {
+func (a *Allocator) Allocate() (*allocation, error) {
 	if err := a.validateSetup(); err != nil {
 		return nil, fmt.Errorf("invalid allocator setup: %w", err)
 	}
@@ -150,8 +150,8 @@ func (a *Allocator) Allocate() (*Allocation, error) {
 
 	// 1. Handle MustGet rules
 	// Keep track of who is available to be a Santa
-	availableSantas := make([]*Player, len(alloc.Players))
-	copy(availableSantas, alloc.Players)
+	availableSantas := make([]*player, len(alloc.players))
+	copy(availableSantas, alloc.players)
 
 	for santaName, mustGet := range a.mustGetRules {
 		santa := alloc.GetPlayer(santaName)
@@ -161,28 +161,28 @@ func (a *Allocator) Allocate() (*Allocation, error) {
 			return nil, fmt.Errorf("must get rule contains unknown player: %s -> %s", santaName, mustGet)
 		}
 
-		if santa.SantaFor != nil {
-			return nil, fmt.Errorf("player %s is assigned to multiple people", santa.Name)
+		if santa.santaFor != nil {
+			return nil, fmt.Errorf("player %s is assigned to multiple people", santa.name)
 		}
-		if santee.Santa != nil {
-			return nil, fmt.Errorf("player %s is assigned multiple santas", santee.Name)
+		if santee.santa != nil {
+			return nil, fmt.Errorf("player %s is assigned multiple santas", santee.name)
 		}
 
 		// Assign
-		santa.SantaFor = santee
-		santee.Santa = santa
+		santa.santaFor = santee
+		santee.santa = santa
 
 		// Remove from available santas
 		idx := slices.Index(availableSantas, santa)
 		if idx == -1 {
 			// Should not happen if logic is correct
-			return nil, fmt.Errorf("player %s already used as santa", santa.Name)
+			return nil, fmt.Errorf("player %s already used as santa", santa.name)
 		}
 		availableSantas = slices.Delete(availableSantas, idx, idx+1)
 	}
 
 	// 2. Solve for the rest using backtracking
-	if a.solve(0, alloc.Players, availableSantas) {
+	if a.solve(0, alloc.players, availableSantas) {
 		a.lastAllocation = *alloc
 		return alloc, nil
 	}
@@ -190,7 +190,7 @@ func (a *Allocator) Allocate() (*Allocation, error) {
 	return nil, fmt.Errorf("unable to find a valid allocation")
 }
 
-func (a *Allocator) solve(santeeIndex int, players []*Player, availableSantas []*Player) bool {
+func (a *Allocator) solve(santeeIndex int, players []*player, availableSantas []*player) bool {
 	// Base case: all players have been processed as santees
 	if santeeIndex >= len(players) {
 		return true
@@ -199,7 +199,7 @@ func (a *Allocator) solve(santeeIndex int, players []*Player, availableSantas []
 	santee := players[santeeIndex]
 
 	// If this player already has a santa (from MustGet), skip to next
-	if santee.Santa != nil {
+	if santee.santa != nil {
 		return a.solve(santeeIndex+1, players, availableSantas)
 	}
 
@@ -212,7 +212,7 @@ func (a *Allocator) solve(santeeIndex int, players []*Player, availableSantas []
 	// Let's make a copy of availableSantas to shuffle for this step's iteration order
 	// But we need to pass the *remaining* santas to the next step.
 
-	candidates := make([]*Player, len(availableSantas))
+	candidates := make([]*player, len(availableSantas))
 	copy(candidates, availableSantas)
 	utils.ShuffleSlice(candidates) // Assuming utils has a shuffle, or I'll use rand.Shuffle if not.
 	// Wait, I should check if utils has ShuffleSlice.
@@ -225,12 +225,12 @@ func (a *Allocator) solve(santeeIndex int, players []*Player, availableSantas []
 	for _, santa := range candidates {
 		if a.canAssign(santa, santee) {
 			// Assign
-			santa.SantaFor = santee
-			santee.Santa = santa
+			santa.santaFor = santee
+			santee.santa = santa
 
 			// Prepare next available santas
 			// We need to remove 'santa' from the list passed to the next recursive call
-			nextAvailable := make([]*Player, 0, len(availableSantas)-1)
+			nextAvailable := make([]*player, 0, len(availableSantas)-1)
 			for _, p := range availableSantas {
 				if p != santa {
 					nextAvailable = append(nextAvailable, p)
@@ -243,24 +243,24 @@ func (a *Allocator) solve(santeeIndex int, players []*Player, availableSantas []
 			}
 
 			// Backtrack
-			santa.SantaFor = nil
-			santee.Santa = nil
+			santa.santaFor = nil
+			santee.santa = nil
 		}
 	}
 
 	return false
 }
 
-func (a *Allocator) canAssign(santa, santee *Player) bool {
+func (a *Allocator) canAssign(santa, santee *player) bool {
 	if santa == santee && !a.CanAllocateSelf {
 		return false
 	}
 
 	// Check exclusion rules
 	// exclusionRules maps Santa Name -> List of names they cannot get
-	if excluded, ok := a.exclusionRules[strings.ToLower(santa.Name)]; ok {
+	if excluded, ok := a.exclusionRules[strings.ToLower(santa.name)]; ok {
 		for _, name := range excluded {
-			if strings.EqualFold(name, santee.Name) {
+			if strings.EqualFold(name, santee.name) {
 				return false
 			}
 		}
@@ -318,10 +318,20 @@ func (a *Allocator) validateRules() error {
 
 // OutputToFile writes an instance of Allocation to fileName
 // with either "json" or "yaml" as the fileType
-func (a *Allocator) OutputToFile(allocation *Allocation, fileName string, fileType string) error {
+func (a *Allocator) OutputToFile(allocation *allocation, fileName string, fileType string) error {
 	as, err := newAllocationStore(allocation, a.Name)
 	if err != nil {
 		return err
 	}
 	return as.ouputToFile(fileName, fileType)
+}
+
+// OutputToBytes returns the allocation as bytes
+// with either "json" or "yaml" as the fileType
+func (a *Allocator) OutputToBytes(allocation *allocation, fileType string) ([]byte, error) {
+	as, err := newAllocationStore(allocation, a.Name)
+	if err != nil {
+		return nil, err
+	}
+	return as.outputToBytes(fileType)
 }
