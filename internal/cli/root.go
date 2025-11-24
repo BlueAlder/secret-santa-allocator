@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/BlueAlder/secret-santa-allocator/pkg/allocator"
+	"github.com/BlueAlder/secret-santa-allocator/pkg/allocator/gamestore"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -94,8 +95,13 @@ func runAllocation() {
 	fmt.Println("found a suitable allocation! ✅")
 
 	if outputFile != "" {
+		as, err := gamestore.New(alcc, config.Name)
+		if err != nil {
+			slog.Error("Error creating allocation store", "error", err)
+			os.Exit(1)
+		}
 		fmt.Printf("printing resulting allocation to file: %s in %s format\n", outputFile, outputFormat)
-		err := a.OutputToFile(alcc, outputFile, outputFormat)
+		err = as.OutputToFile(outputFile, outputFormat)
 		if err != nil {
 			slog.Error("Error writing to file", "error", err)
 		} else {

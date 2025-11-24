@@ -7,9 +7,9 @@ import (
 	"github.com/BlueAlder/secret-santa-allocator/pkg/utils"
 )
 
-// allocation holds the aliases and allocations
+// Allocation holds the aliases and allocations
 // for a particular derangment.
-type allocation struct {
+type Allocation struct {
 	Created time.Time
 	players []*player `json:"-"`
 }
@@ -24,9 +24,9 @@ type player struct {
 	santa    *player
 }
 
-func NewAllocation(playerNames []string, passwords []string) *allocation {
+func NewAllocation(playerNames []string, passwords []string) *Allocation {
 
-	a := &allocation{
+	a := &Allocation{
 		players: make([]*player, 0),
 		Created: time.Now().Local(),
 	}
@@ -40,7 +40,7 @@ func NewAllocation(playerNames []string, passwords []string) *allocation {
 	return a
 }
 
-func (a *allocation) assignAliases(passwords []string) {
+func (a *Allocation) assignAliases(passwords []string) {
 	for _, player := range a.players {
 		password, randIdx := utils.RandomElementFromSlice(passwords)
 		player.alias = password
@@ -48,7 +48,7 @@ func (a *allocation) assignAliases(passwords []string) {
 	}
 }
 
-func (a *allocation) GetPlayer(name string) *player {
+func (a *Allocation) GetPlayer(name string) *player {
 	for _, player := range a.players {
 		if player.name == name {
 			return player
@@ -58,8 +58,8 @@ func (a *allocation) GetPlayer(name string) *player {
 }
 
 // AllocatedPasswords returns a map[string]string
-// mapping each name and their assigned name (not their alias)
-func (a *allocation) AllocatedPasswords() map[string]string {
+// mapping each name and their assigned player's alias
+func (a *Allocation) AllocatedPasswords() map[string]string {
 	var passwordAllocations = make(map[string]string)
 	for _, player := range a.players {
 		passwordAllocations[player.name] = player.santaFor.alias
@@ -67,28 +67,48 @@ func (a *allocation) AllocatedPasswords() map[string]string {
 	return passwordAllocations
 }
 
-func (a *allocation) PrintNameToPassword() {
+// Aliases returns a map[string]string
+// mapping each name and their assigned alias
+func (a *Allocation) Aliases() map[string]string {
+	var aliases = make(map[string]string)
+	for _, player := range a.players {
+		aliases[player.alias] = player.name
+	}
+	return aliases
+}
+
+// Allocations returns a map[string]string
+// mapping each players name and their assigned player's name (not their alias)
+func (a *Allocation) Allocations() map[string]string {
+	var nameAllocations = make(map[string]string)
+	for _, player := range a.players {
+		nameAllocations[player.name] = player.santaFor.name
+	}
+	return nameAllocations
+}
+
+func (a *Allocation) PrintNameToPassword() {
 	fmt.Println("Printing names to allocated passwords:")
 	for name, password := range a.AllocatedPasswords() {
 		fmt.Printf("%s -> %s\n", name, password)
 	}
 }
 
-func (a *allocation) PrintNameToName() {
+func (a *Allocation) PrintNameToName() {
 	fmt.Println("Printing names to allocated names:")
 	for _, player := range a.players {
 		fmt.Printf("%s -> %s\n", player.name, player.santaFor.name)
 	}
 }
 
-func (a *allocation) PrintAliases() {
+func (a *Allocation) PrintAliases() {
 	fmt.Println("Printing names aliases:")
 	for _, player := range a.players {
 		fmt.Printf("%s -> %s\n", player.name, player.alias)
 	}
 }
 
-func (a *allocation) String() string {
+func (a *Allocation) String() string {
 	res := fmt.Sprintf("Created at %s\n", a.Created.Format("01-02-2006 15:04:05"))
 	res += "Aliases:\n"
 	for _, player := range a.players {

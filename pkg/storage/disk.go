@@ -25,3 +25,15 @@ func (s *DiskStorage) Save(ctx context.Context, key string, data []byte) error {
 	}
 	return nil
 }
+
+func (s *DiskStorage) Load(ctx context.Context, key string) ([]byte, error) {
+	filename := filepath.Join(s.BaseDir, key)
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+	return data, nil
+}

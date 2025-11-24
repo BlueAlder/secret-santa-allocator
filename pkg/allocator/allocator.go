@@ -18,7 +18,7 @@ type Set map[string]struct{}
 type Allocator struct {
 	names          []string
 	passwords      []string
-	lastAllocation allocation
+	lastAllocation Allocation
 	// maps names to names they cannot be assigned (rules)
 	exclusionRules map[string][]string
 	// maps names to names they must be assigned (rules)
@@ -137,7 +137,7 @@ func (a *Allocator) loadRules(conf *Config) error {
 
 // Allocate will allocate the names to a password and then the
 // password to a name to create anonymity
-func (a *Allocator) Allocate() (*allocation, error) {
+func (a *Allocator) Allocate() (*Allocation, error) {
 	if err := a.validateSetup(); err != nil {
 		return nil, fmt.Errorf("invalid allocator setup: %w", err)
 	}
@@ -187,7 +187,7 @@ func (a *Allocator) Allocate() (*allocation, error) {
 		return alloc, nil
 	}
 
-	return nil, fmt.Errorf("unable to find a valid allocation")
+	return nil, fmt.Errorf("impossible to create allocation, check rules")
 }
 
 func (a *Allocator) solve(santeeIndex int, players []*player, availableSantas []*player) bool {
@@ -205,22 +205,9 @@ func (a *Allocator) solve(santeeIndex int, players []*player, availableSantas []
 
 	// Try to find a santa for this santee
 	// Shuffle available santas to ensure randomness
-	// We create a copy of indices to shuffle, or just shuffle the slice if we don't mind mutating it (we pass a new slice in recursion usually, but here availableSantas shrinks)
-	// Actually, to backtrack efficiently, we can just iterate and swap.
-	// But to be random, we should iterate in random order.
-
-	// Let's make a copy of availableSantas to shuffle for this step's iteration order
-	// But we need to pass the *remaining* santas to the next step.
-
 	candidates := make([]*player, len(availableSantas))
 	copy(candidates, availableSantas)
-	utils.ShuffleSlice(candidates) // Assuming utils has a shuffle, or I'll use rand.Shuffle if not.
-	// Wait, I should check if utils has ShuffleSlice.
-	// If not, I'll use rand.Shuffle.
-	// I'll check utils first or just implement shuffle inline.
-	// The original code used utils.RandomElementFromSlice.
-
-	// Let's assume I can just iterate through candidates.
+	utils.ShuffleSlice(candidates)
 
 	for _, santa := range candidates {
 		if a.canAssign(santa, santee) {
@@ -229,7 +216,6 @@ func (a *Allocator) solve(santeeIndex int, players []*player, availableSantas []
 			santee.santa = santa
 
 			// Prepare next available santas
-			// We need to remove 'santa' from the list passed to the next recursive call
 			nextAvailable := make([]*player, 0, len(availableSantas)-1)
 			for _, p := range availableSantas {
 				if p != santa {
@@ -314,24 +300,4 @@ func (a *Allocator) validateRules() error {
 		}
 	}
 	return nil
-}
-
-// OutputToFile writes an instance of Allocation to fileName
-// with either "json" or "yaml" as the fileType
-func (a *Allocator) OutputToFile(allocation *allocation, fileName string, fileType string) error {
-	as, err := newAllocationStore(allocation, a.Name)
-	if err != nil {
-		return err
-	}
-	return as.ouputToFile(fileName, fileType)
-}
-
-// OutputToBytes returns the allocation as bytes
-// with either "json" or "yaml" as the fileType
-func (a *Allocator) OutputToBytes(allocation *allocation, fileType string) ([]byte, error) {
-	as, err := newAllocationStore(allocation, a.Name)
-	if err != nil {
-		return nil, err
-	}
-	return as.outputToBytes(fileType)
 }
