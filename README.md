@@ -12,10 +12,10 @@ Default usage is providing a config file which defines the names and constraints
 
 `secret-santa --configFile config.yaml`
 
-The config file is a yaml file with these fields 
+The config file is a yaml file with these fields.
 
 ```yaml
-# must provide either `file` or `data` field. If both then they are unioned and deduped
+# must provide either `file` OR `data` field. If both then they are unioned and deduped
 names: 
   file: "names.txt" # name of file that contains a list of names
   data: ["sam", "tom", "jim", "grace", "bill"] # array of names that is unioned with the above file
@@ -28,14 +28,16 @@ passwords:
 canAllocateSelf: false # can you be allocated yourself
 timeout: 5s # timeout of finding a suitable allocation
 
-# rules per name
+# rules per person playing
 rules: 
   - name: "sam" 
     cannotGet:  # will not be allocated
       - "matt"
       - "grace"
+    mustGet: "bill" # will auto allocate to this person (cannotGet is obsolete)
   - name: "grace"
     cannotGet:
       - "sam"
       - "olivia c."
+    inverse: true # if inverse is true all names in the cannotGet list will also not be able to be allocated to this name
 ```

@@ -1,6 +1,8 @@
 package allocator
 
 import (
+	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -8,18 +10,29 @@ func createAllocator() *Allocator {
 	var yaml = `names: 
     data: ["sam", "tom", "jim", "grace", "bill"] # array of names that is unioned with the above file
 passwords: 
-  data: ["password1", "password2", "password3", "password4", "password5"]`
-	c, _ := LoadConfigFromYaml([]byte(yaml))
-	a, _ := New(c)
+  data: ["password1", "password2", "password3", "password4", "password5"]
+rules:
+  - name: sam
+    cannotGet: ["tom", "bill"]
+  - name: tom
+    cannotGet: ["grace"]
+    inverse: true`
+	c, err := LoadConfigFromYaml([]byte(yaml))
+
+	if err != nil {
+		panic(err)
+	}
+
+	a, _ := NewFromConfig(c)
 	return a
 }
 
 func TestFailOn1Name(t *testing.T) {
-	names := map[string]struct{}{"sam": {}}
-	passwords := map[string]struct{}{"1": {}, "2": {}, "3": {}, "4": {}, "5": {}}
+	names := []string{"sam"}
+	passwords := []string{"1", "2", "3", "4", "5"}
 	a := createAllocator()
-	a.Names = names
-	a.Passwords = passwords
+	a.names = names
+	a.passwords = passwords
 	if _, err := a.Allocate(); err == nil {
 		t.Fatalf("should fail on 1 name")
 	}
@@ -35,12 +48,12 @@ func TestAllocateNoDuplicateAliases(t *testing.T) {
 
 	seenNames := make(map[string]bool)
 	seenPasswords := make(map[string]bool)
-	for name, password := range allocation.Aliases {
-		if seenNames[name] {
-			t.Errorf("Name has appeared twice in alias allocation: %s", name)
+	for _, player := range allocation.players {
+		if seenNames[player.name] {
+			t.Errorf("Name has appeared twice in alias allocation: %s", player.name)
 		}
-		if seenPasswords[password] {
-			t.Errorf("Password has appeared twice in alias allocation: %s", name)
+		if seenPasswords[player.alias] {
+			t.Errorf("Password has appeared twice in alias allocation: %s", player.alias)
 		}
 	}
 }
@@ -49,27 +62,22 @@ func TestAllocationDoesNotAssignSelf(t *testing.T) {
 	a := createAllocator()
 	allocation, _ := a.Allocate()
 
-	for name, password := range allocation.Allocations {
-		assigned := allocation.Aliases[password]
-		if name == assigned {
-			t.Fatalf("found name with self assigned: %s", name)
+	for _, player := range allocation.players {
+		assigned := player.santaFor
+		if player == assigned {
+			t.Fatalf("found name with self assigned: %s", player.name)
 		}
 	}
 }
 
-func TestEveryNameIsInEachList(t *testing.T) {
+func TestEveryNameIsInThePlayerList(t *testing.T) {
 	a := createAllocator()
 	allocation, _ := a.Allocate()
 	// check alias map
-	for name := range a.Names {
-		_, exists := allocation.Aliases[name]
-		if !exists {
-			t.Logf("Unable to find name in alias: %s", name)
-			t.Fatal(allocation)
-		}
-		_, exists = allocation.Allocations[name]
-		if !exists {
-			t.Logf("Unable to find name in allocations: %s", name)
+	for _, name := range a.names {
+		idx := slices.IndexFunc(allocation.players, func(p *player) bool { return p.name == name })
+		if idx == -1 {
+			t.Logf("Unable to find name in list of player: %s", name)
 			t.Fatal(allocation)
 		}
 	}
@@ -77,44 +85,6 @@ func TestEveryNameIsInEachList(t *testing.T) {
 	// Check allocation map
 
 }
-
-// Don't need this anymore
-// func TestEveryPasswordIsInEachList(t *testing.T) {
-// 	a := createAllocator()
-// 	allocation, _ := a.Allocate()
-
-// 	for password := range a.Passwords {
-// 		// check alias passwords
-// 		exists := false
-// 		for _, allocationPassword := range allocation.allocations {
-// 			if password == allocationPassword {
-// 				exists = true
-// 				break
-// 			}
-// 		}
-// 		if !exists {
-
-// 			t.Logf("Unable to find password in allocations: %s", password)
-// 			t.Fatal(allocation)
-// 		}
-
-// 		for password := range a.Passwords {
-// 			// check alias passwords
-// 			exists := false
-// 			for _, aliasPassword := range allocation.aliases {
-// 				if password == aliasPassword {
-// 					exists = true
-// 					break
-// 				}
-// 			}
-// 			if !exists {
-
-// 				t.Logf("Unable to find password in aliases: %s", password)
-// 				t.Fatal(allocation)
-// 			}
-// 		}
-// 	}
-// }
 
 func TestAllocateNoDuplicateAllocations(t *testing.T) {
 	allocator := createAllocator()
@@ -126,28 +96,104 @@ func TestAllocateNoDuplicateAllocations(t *testing.T) {
 
 	seenNames := make(map[string]bool)
 	seenPasswords := make(map[string]bool)
-	for name, password := range allocation.Allocations {
-		if seenNames[name] {
-			t.Errorf("Name has appeared twice in allocation: %s", name)
+	for _, player := range allocation.players {
+		if seenNames[player.name] {
+			t.Errorf("Name has appeared twice in allocation: %s", player.name)
 		}
-		if seenPasswords[password] {
-			t.Errorf("Password has appeared twice in allocation: %s", name)
+		seenNames[player.name] = true
+		if seenPasswords[player.alias] {
+			t.Errorf("Password has appeared twice in allocation: %s", player.alias)
 		}
+		seenPasswords[player.alias] = true
 	}
 }
 
 func TestErrorOnLessPasswordsThanNames(t *testing.T) {
-	names := map[string]struct{}{"sam": {}, "john": {}, "billiam": {}, "john4": {}, "john3": {}, "extra name": {}}
-	passwords := map[string]struct{}{"1": {}, "2": {}, "3": {}, "4": {}, "5": {}}
+	names := []string{"sam", "john", "billiam", "john4", "john3", "extra name"}
+	passwords := []string{"1", "2", "3", "4", "5"}
 
-	// const yaml := ``
 	allocator := createAllocator()
-	allocator.Names = names
-	allocator.Passwords = passwords
+	allocator.names = names
+	allocator.passwords = passwords
 
 	_, err := allocator.Allocate()
 
 	if err == nil {
 		t.Error("should have errored on more names than passwords")
+	}
+}
+
+func TestLoadingRules(t *testing.T) {
+	allocator := createAllocator()
+
+	want := make(map[string][]string)
+	want["sam"] = []string{"tom", "bill"}
+	want["tom"] = []string{"grace"}
+	want["grace"] = []string{"tom"}
+
+	if len(allocator.exclusionRules) != 3 {
+		t.Fatalf("expected 3 rules, got %d", len(allocator.exclusionRules))
+	}
+
+	testNames := []string{"sam", "tom", "grace"}
+
+	for _, name := range testNames {
+		if !reflect.DeepEqual(allocator.exclusionRules[name], want[name]) {
+			t.Fatalf("expected %v, got %v", want[name], allocator.exclusionRules[name])
+		}
+	}
+
+}
+
+// tests setting multiple mustGet rules for a single name
+func TestMultipleMustGetRules(t *testing.T) {
+	a := New()
+	a.names = []string{"sam", "tom", "jim", "grace", "bill"}
+	a.passwords = []string{"password1", "password2", "password3", "password4", "password5"}
+	a.mustGetRules["sam"] = "jim"
+	a.mustGetRules["grace"] = "jim"
+
+	_, err := a.Allocate()
+	if err == nil {
+		t.Fatalf("should fail on multiple must get rules")
+	}
+}
+
+// tests setting a mustGet rule should always assign the same santa
+func TestMustGetRule(t *testing.T) {
+	a := New()
+	a.names = []string{"sam", "tom", "jim", "grace", "bill"}
+	a.passwords = []string{"password1", "password2", "password3", "password4", "password5"}
+	a.mustGetRules["sam"] = "jim"
+
+	for i := 0; i < 100; i++ {
+		allocation, err := a.Allocate()
+		if err != nil {
+			t.Fatalf("should not fail on must get rule")
+		}
+
+		if allocation.GetPlayer("sam").santaFor != allocation.GetPlayer("jim") || allocation.GetPlayer("jim").santa != allocation.GetPlayer("sam") {
+			t.Fatalf("must get rule not followed")
+		}
+	}
+}
+
+// test must never get
+
+func TestMustNeverGetRule(t *testing.T) {
+	a := New()
+	a.names = []string{"sam", "tom", "jim", "grace", "bill"}
+	a.passwords = []string{"password1", "password2", "password3", "password4", "password5"}
+	a.exclusionRules["sam"] = []string{"tom"}
+
+	for i := 0; i < 100; i++ {
+		allocation, err := a.Allocate()
+		if err != nil {
+			t.Fatalf("should not fail on must never get rule")
+		}
+
+		if allocation.GetPlayer("sam").santaFor == allocation.GetPlayer("tom") || allocation.GetPlayer("tom").santa == allocation.GetPlayer("sam") {
+			t.Fatalf("must never get rule not followed")
+		}
 	}
 }
