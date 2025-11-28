@@ -160,7 +160,6 @@ func (s *Server) checkPasswordHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := r.PathValue("id")
-	fmt.Print(id)
 
 	// Load game
 	fileName := fmt.Sprintf("%s.json", id)
@@ -174,6 +173,8 @@ func (s *Server) checkPasswordHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Failed to load game: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	s.logger.Debug("game file loaded", "filename", fileName)
 
 	// Unmarshal game
 	var game gamestore.GameStore

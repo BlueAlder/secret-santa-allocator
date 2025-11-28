@@ -27,6 +27,7 @@ func createServer() (*Server, error) {
 	// Initialize logger
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
+		// Level: slog.LevelDebug,
 	}))
 
 	server := &Server{

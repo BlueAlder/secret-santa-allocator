@@ -2,6 +2,7 @@ package allocator
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/BlueAlder/secret-santa-allocator/pkg/utils"
@@ -43,7 +44,7 @@ func NewAllocation(playerNames []string, passwords []string) *Allocation {
 func (a *Allocation) assignAliases(passwords []string) {
 	for _, player := range a.players {
 		password, randIdx := utils.RandomElementFromSlice(passwords)
-		player.alias = password
+		player.alias = strings.ToLower(password)
 		passwords, _ = utils.RemoveIndex(passwords, randIdx)
 	}
 }
